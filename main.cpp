@@ -264,7 +264,27 @@ public:
 };
 
 template <std::size_t CELL_SIZE, std::size_t PADDING_SIZE>
-class BottomToUpConveyorCell : public IForegroundCell<CELL_SIZE, PADDING_SIZE>
+class BottomToTopConveyorCell : public IForegroundCell<CELL_SIZE, PADDING_SIZE>
+{
+public:
+    bool CanModify() const override
+    {
+        return true;
+    }
+    void Render(sf::RenderWindow &window, const sf::Font &font, sf::Vector2f topLeft) const override
+    {
+        CellRenderer<CELL_SIZE, PADDING_SIZE>::RenderBorder(window, topLeft);
+
+        int xOffset = 2;
+        sf::RectangleShape rectangle(sf::Vector2f(CELL_SIZE - 2 * xOffset, CELL_SIZE));
+        rectangle.setFillColor(sf::Color(128, 128, 128));
+        rectangle.setPosition(topLeft + sf::Vector2f(xOffset, 0));
+        window.draw(rectangle);
+    }
+};
+
+template <std::size_t CELL_SIZE, std::size_t PADDING_SIZE>
+class UpToBottomConveyorCell : public IForegroundCell<CELL_SIZE, PADDING_SIZE>
 {
 public:
     bool CanModify() const override
@@ -287,6 +307,10 @@ template <std::size_t CELL_SIZE, std::size_t PADDING_SIZE>
 class BottomToRightConveyorCell : public IForegroundCell<CELL_SIZE, PADDING_SIZE>
 {
 public:
+    bool CanModify() const override
+    {
+        return true;
+    }
     void Render(sf::RenderWindow &window, const sf::Font &font, sf::Vector2f topLeft) const override
     {
         CellRenderer<CELL_SIZE, PADDING_SIZE>::RenderBorder(window, topLeft);
@@ -303,6 +327,116 @@ public:
         shape.setPosition(topLeft);
         window.draw(shape);
     }
+};
+
+template <std::size_t CELL_SIZE, std::size_t PADDING_SIZE>
+class LeftToBottomConveyorCell : public IForegroundCell<CELL_SIZE, PADDING_SIZE>
+{
+public:
+    bool CanModify() const override
+    {
+        return true;
+    }
+    void Render(sf::RenderWindow &window, const sf::Font &font, sf::Vector2f topLeft) const override
+    {
+        CellRenderer<CELL_SIZE, PADDING_SIZE>::RenderBorder(window, topLeft);
+
+        int offset = 2;
+        sf::ConvexShape shape(6);
+        shape.setPoint(0, sf::Vector2f(0, offset));
+        shape.setPoint(1, sf::Vector2f(CELL_SIZE - 4 * offset, offset));
+        shape.setPoint(2, sf::Vector2f(CELL_SIZE - offset, 4 * offset));
+        shape.setPoint(3, sf::Vector2f(CELL_SIZE - offset, CELL_SIZE));
+        shape.setPoint(4, sf::Vector2f(offset, CELL_SIZE));
+        shape.setPoint(5, sf::Vector2f(0, CELL_SIZE - offset));
+        shape.setFillColor(sf::Color(128, 128, 128));
+        shape.setPosition(topLeft);
+        window.draw(shape);
+    }
+};
+
+template <std::size_t CELL_SIZE, std::size_t PADDING_SIZE>
+class TopToLeftConveyorCell : public IForegroundCell<CELL_SIZE, PADDING_SIZE>
+{
+public:
+    bool CanModify() const override
+    {
+        return true;
+    }
+    void Render(sf::RenderWindow &window, const sf::Font &font, sf::Vector2f topLeft) const override
+    {
+        CellRenderer<CELL_SIZE, PADDING_SIZE>::RenderBorder(window, topLeft);
+
+        int offset = 2;
+        sf::ConvexShape shape(6);
+        shape.setPoint(0, sf::Vector2f(offset, 0));
+        shape.setPoint(1, sf::Vector2f(CELL_SIZE - offset, 0));
+        shape.setPoint(2, sf::Vector2f(CELL_SIZE - offset, CELL_SIZE - 4 * offset));
+        shape.setPoint(3, sf::Vector2f(CELL_SIZE - 4 * offset, CELL_SIZE - offset));
+        shape.setPoint(4, sf::Vector2f(0, CELL_SIZE - offset));
+        shape.setPoint(5, sf::Vector2f(0, offset));
+        shape.setFillColor(sf::Color(128, 128, 128));
+        shape.setPosition(topLeft);
+        window.draw(shape);
+    }
+};
+
+template <std::size_t CELL_SIZE, std::size_t PADDING_SIZE>
+class RightToLeftConveyorCell : public IForegroundCell<CELL_SIZE, PADDING_SIZE>
+{
+public:
+    bool CanModify() const override
+    {
+        return true;
+    }
+    void Render(sf::RenderWindow &window, const sf::Font &font, sf::Vector2f topLeft) const override
+    {
+        CellRenderer<CELL_SIZE, PADDING_SIZE>::RenderBorder(window, topLeft);
+        int yOffset = 2;
+        sf::RectangleShape rectangle(sf::Vector2f(CELL_SIZE, CELL_SIZE - 2 * yOffset));
+        rectangle.setFillColor(sf::Color(128, 128, 128));
+        rectangle.setPosition(topLeft + sf::Vector2f(0, yOffset));
+        window.draw(rectangle);
+    }
+};
+
+template <std::size_t CELL_SIZE, std::size_t PADDING_SIZE>
+class RightToTopConveyorCell : public IForegroundCell<CELL_SIZE, PADDING_SIZE>
+{
+public:
+    bool CanModify() const override
+    {
+        return true;
+    }
+
+    void Render(sf::RenderWindow &window, const sf::Font &font, sf::Vector2f topLeft) const override
+    {
+        CellRenderer<CELL_SIZE, PADDING_SIZE>::RenderBorder(window, topLeft);
+
+        int offset = 2;
+        sf::ConvexShape shape(6);
+        shape.setPoint(0, sf::Vector2f(offset, 0));
+        shape.setPoint(1, sf::Vector2f(CELL_SIZE - offset, 0));
+        shape.setPoint(2, sf::Vector2f(CELL_SIZE, offset));
+        shape.setPoint(3, sf::Vector2f(CELL_SIZE, CELL_SIZE - offset));
+        shape.setPoint(4, sf::Vector2f(4 * offset, CELL_SIZE - offset));
+        shape.setPoint(5, sf::Vector2f(offset, CELL_SIZE - 4 * offset));
+        shape.setFillColor(sf::Color(128, 128, 128));
+        shape.setPosition(topLeft);
+        window.draw(shape);
+    }
+};
+
+enum class PlayerAction {
+    BuildLeftToRightConveyor,
+    BuildLeftToBottomConveyor,
+    BuildTopToBottomConveyor,
+    BuildTopToLeftConveyor,
+    BuildRightToLeftConveyor,
+    BuildRightToTopConveyor,
+    BuildBottomToTopConveyor,
+    BuildBottomToRightConveyor,
+    Clear,
 };
 
 template <
@@ -353,21 +487,42 @@ public:
         return board_.IsMouseInsideBoard(window);
     }
 
-    void Build(const sf::RenderWindow &window)
+    void Exec(PlayerAction playerAction, const sf::RenderWindow &window)
     {
         sf::Vector2i mouseCellPosition = board_.GetMouseCellPosition(window);
-        if (board_.CanModify(mouseCellPosition)) {
-            board_.SetForeground(mouseCellPosition.y, mouseCellPosition.x, std::make_shared<LeftToRightConveyorCell<CELL_SIZE, PADDING_SIZE>>());
-        }
-    }
-
-    void Clear(const sf::RenderWindow& window) 
-    {
-        sf::Vector2i mouseCellPosition = board_.GetMouseCellPosition(window);
-        
         if (board_.CanModify(mouseCellPosition))
         {
-            board_.SetForeground(mouseCellPosition.y, mouseCellPosition.x, nullptr);
+            std::shared_ptr<IForegroundCell<CELL_SIZE, PADDING_SIZE>> nextForegroundCell = nullptr;
+            switch (playerAction) {
+                case PlayerAction::BuildLeftToRightConveyor:
+                    nextForegroundCell = std::make_shared<LeftToRightConveyorCell<CELL_SIZE, PADDING_SIZE>>();
+                    break;
+                case PlayerAction::BuildLeftToBottomConveyor:
+                    nextForegroundCell = std::make_shared<LeftToBottomConveyorCell<CELL_SIZE, PADDING_SIZE>>();
+                    break;
+                case PlayerAction::BuildTopToBottomConveyor:
+                    nextForegroundCell = std::make_shared<UpToBottomConveyorCell<CELL_SIZE, PADDING_SIZE>>();
+                    break;
+                case PlayerAction::BuildTopToLeftConveyor:
+                    nextForegroundCell = std::make_shared<TopToLeftConveyorCell<CELL_SIZE, PADDING_SIZE>>();
+                    break;
+                case PlayerAction::BuildRightToLeftConveyor:
+                    nextForegroundCell = std::make_shared<RightToLeftConveyorCell<CELL_SIZE, PADDING_SIZE>>();
+                    break;
+                case PlayerAction::BuildRightToTopConveyor:
+                    nextForegroundCell = std::make_shared<RightToTopConveyorCell<CELL_SIZE, PADDING_SIZE>>();
+                    break;
+                case PlayerAction::BuildBottomToTopConveyor:
+                    nextForegroundCell = std::make_shared<BottomToTopConveyorCell<CELL_SIZE, PADDING_SIZE>>();
+                    break;
+                case PlayerAction::BuildBottomToRightConveyor:
+                    nextForegroundCell = std::make_shared<BottomToRightConveyorCell<CELL_SIZE, PADDING_SIZE>>();
+                    break;
+                case PlayerAction::Clear:
+                    nextForegroundCell = nullptr;
+                    break;
+            }
+            board_.SetForeground(mouseCellPosition.y, mouseCellPosition.x, nextForegroundCell);
         }
     }
 
@@ -387,7 +542,10 @@ private:
 
 int main(int, char **)
 {
+    PlayerAction playerAction = PlayerAction::BuildLeftToRightConveyor;
+
     sf::Font font;
+
     font.loadFromFile("/Library/Fonts/Arial Unicode.ttf");
 
     sf::VideoMode mode = sf::VideoMode(1280, 1024);
@@ -407,12 +565,43 @@ int main(int, char **)
                 {
                     if (event.mouseButton.button == sf::Mouse::Left) 
                     {
-                        gameManager.Build(window);
+                        gameManager.Exec(playerAction, window);
                     } 
-                    else 
-                    {
-                        gameManager.Clear(window);
-                    }
+                }
+            }
+
+            if (event.type == sf::Event::KeyReleased) {
+                switch (event.key.code) {
+                    case sf::Keyboard::Tilde:
+                        playerAction = PlayerAction::Clear;
+                        break;
+                    case sf::Keyboard::Num1:
+                        playerAction = PlayerAction::BuildLeftToRightConveyor;
+                        break;
+                    case sf::Keyboard::Num2:
+                        playerAction = PlayerAction::BuildLeftToBottomConveyor;
+                        break;
+                    case sf::Keyboard::Num3:
+                        playerAction = PlayerAction::BuildTopToBottomConveyor;
+                        break;
+
+                    case sf::Keyboard::Num4:
+                        playerAction = PlayerAction::BuildTopToLeftConveyor;
+                        break;
+                    case sf::Keyboard::Num5:
+                        playerAction = PlayerAction::BuildRightToLeftConveyor;
+                        break;
+                    case sf::Keyboard::Num6:
+                        playerAction = PlayerAction::BuildRightToTopConveyor;
+                        break;
+                    case sf::Keyboard::Num7:
+                        playerAction = PlayerAction::BuildBottomToTopConveyor;
+                        break;
+                    case sf::Keyboard::Num8:
+                        playerAction = PlayerAction::BuildBottomToRightConveyor;
+                        break;
+                    default:
+                        break;
                 }
             }
             if (event.type == sf::Event::Closed)
