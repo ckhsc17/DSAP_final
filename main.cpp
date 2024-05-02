@@ -109,6 +109,13 @@ public:
 
 
 template <typename TGameConfig>
+class IConveyorCell : public IForegroundCell<TGameConfig>
+{
+public:
+    virtual void EnqueueProduct(int number) = 0;
+};
+
+template <typename TGameConfig>
 class WallBackgroundCell : public IBackgroundCell<TGameConfig>
 {
 public:
@@ -519,12 +526,15 @@ public:
 };
 
 template <typename TGameConfig>
-class LeftToBottomConveyorCell : public IForegroundCell<TGameConfig>
+class LeftToBottomConveyorCell : public IConveyorCell<TGameConfig>
 {
 public:
     bool CanRemove(const IForegroundCell<TGameConfig> &) const override
     {
         return true;
+    }
+    void EnqueueProduct(int number) override {
+        products_.push(number);
     }
     void Update(std::size_t i, std::size_t j, GameBoard<TGameConfig>& board) override
     {
@@ -561,6 +571,8 @@ public:
         arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::CELL_SIZE / 2 - 0.5 * offset, TGameConfig::CELL_SIZE / 2 + 0.5 * offset));
         renderer.Draw(arrow);
     }
+private:
+    std::queue<int> products_;
 };
 
 template <typename TGameConfig>
@@ -608,12 +620,7 @@ public:
     }
 };
 
-template <typename TGameConfig>
-class IConveyorCell : public IForegroundCell<TGameConfig>
-{
-public:
-    virtual void EnqueueProduct(int number) = 0;
-};
+
 
 template <typename TGameConfig>
 class RightToLeftConveyorCell : public IConveyorCell<TGameConfig>
@@ -902,11 +909,11 @@ class GameConfig {
 public:
     static constexpr std::size_t BOARD_WIDTH = 62;
     static constexpr std::size_t BOARD_HEIGHT = 36;
-    static constexpr std::size_t CELL_SIZE = 20;
-    static constexpr std::size_t LEFT = 20;
-    static constexpr std::size_t TOP = 20;
+    static constexpr int CELL_SIZE = 20;
+    static constexpr int LEFT = 20;
+    static constexpr int TOP = 20;
     static constexpr std::size_t GOAL_SIZE = 4;
-    static constexpr std::size_t PADDING_SIZE = 1;
+    static constexpr int PADDING_SIZE = 1;
 };
 
 int main(int, char **)
