@@ -37,13 +37,13 @@ public:
     {
         sf::RectangleShape rectangle(
             sf::Vector2f(
-                TGameConfig::CELL_SIZE - 2 * TGameConfig::PADDING_SIZE,
-                TGameConfig::CELL_SIZE - 2 * TGameConfig::PADDING_SIZE));
+                TGameConfig::kCellSize - 2 * TGameConfig::kBorderSize,
+                TGameConfig::kCellSize - 2 * TGameConfig::kBorderSize));
 
         rectangle.setOutlineColor(sf::Color(60, 60, 60));
-        rectangle.setOutlineThickness(TGameConfig::PADDING_SIZE);
+        rectangle.setOutlineThickness(TGameConfig::kBorderSize);
         rectangle.setFillColor(sf::Color::Black);
-        rectangle.setPosition(topLeft + sf::Vector2f(TGameConfig::PADDING_SIZE, TGameConfig::PADDING_SIZE));
+        rectangle.setPosition(topLeft + sf::Vector2f(TGameConfig::kBorderSize, TGameConfig::kBorderSize));
         window_->draw(rectangle);
     }
 
@@ -68,8 +68,8 @@ public:
         sf::FloatRect rect = text.getLocalBounds();
         text.setOrigin(rect.left + rect.width / 2.0f, rect.top + rect.height / 2.0f);
         text.setPosition(
-            topLeft.x + TGameConfig::CELL_SIZE / 2.0f,
-            topLeft.y + TGameConfig::CELL_SIZE / 2.0f);
+            topLeft.x + TGameConfig::kCellSize / 2.0f,
+            topLeft.y + TGameConfig::kCellSize / 2.0f);
         text.setRotation(90 * static_cast<int>(direction));
         window_->draw(text);
     }
@@ -98,6 +98,8 @@ class IForegroundCell : public ICell<TGameConfig>
 public:
     virtual bool CanRemove(const IForegroundCell &) const = 0;
 
+    virtual bool EnqueueProduct(int number) = 0;
+
     virtual void Update(std::size_t i, std::size_t j, GameBoard<TGameConfig>& board) = 0;
 
     virtual void Render(
@@ -109,10 +111,27 @@ public:
 
 
 template <typename TGameConfig>
-class IConveyorCell : public IForegroundCell<TGameConfig>
+class ConveyorCell : public IForegroundCell<TGameConfig>
 {
 public:
-    virtual void EnqueueProduct(int number) = 0;
+    int Process() {
+        int number = products.front();
+        for (std::size_t k = 0; k + 1 < products.size(); ++k) {
+            products[k] = products[k + 1];
+        }
+        products.back() = 0;
+        return number;
+    }
+    bool EnqueueProduct(int number) override
+    {
+        if (products.back() != 0) {
+            return false;
+        }
+        products.back() = number;
+        return true;
+    }
+protected:
+    std::array<int, TGameConfig::kConveyorBufferSize> products;
 };
 
 template <typename TGameConfig>
@@ -125,7 +144,7 @@ public:
     }
     void Render(GameRenderer<TGameConfig>& renderer, sf::Vector2f topLeft) const override
     {
-        sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::CELL_SIZE, TGameConfig::CELL_SIZE));
+        sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::kCellSize, TGameConfig::kCellSize));
         rectangle.setFillColor(sf::Color(60, 60, 60));
         rectangle.setPosition(topLeft);
         renderer.Draw(rectangle);
@@ -140,7 +159,10 @@ public:
     {
         return false;
     }
-    
+    bool EnqueueProduct(int number) override
+    {
+        return true;
+    }
     void Update(std::size_t i, std::size_t j, GameBoard<TGameConfig>& board) override
     {
     }
@@ -150,7 +172,7 @@ public:
         sf::Vector2f topLeft,
         const IBackgroundCell<TGameConfig>& backgroundCell) const override
     {
-        sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::CELL_SIZE, TGameConfig::CELL_SIZE));
+        sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::kCellSize, TGameConfig::kCellSize));
         rectangle.setFillColor(sf::Color(150, 150, 150));
         rectangle.setPosition(topLeft);
         renderer.Draw(rectangle);
@@ -213,6 +235,10 @@ public:
     {
         return cellStacks_[i][j].GetForeground();
     }
+    BackgroundCellPointer GetBackground(std::size_t i, std::size_t j) const
+    {
+        return cellStacks_[i][j].GetBackground();
+    }
 
     void SetForeground(std::size_t i, std::size_t j,  ForegroundCellPointer value)
     {
@@ -242,24 +268,24 @@ public:
     {
         const sf::Vector2i mousePosition = renderer.GetMousePosition();
         const sf::Vector2i relatedMousePosition = 
-        mousePosition - sf::Vector2i(TGameConfig::LEFT, TGameConfig::TOP);
+        mousePosition - sf::Vector2i(TGameConfig::kLeftOffset, TGameConfig::kTopOffset);
         return sf::Vector2i(
-            relatedMousePosition.x / TGameConfig::CELL_SIZE, 
-            relatedMousePosition.y / TGameConfig::CELL_SIZE);
+            relatedMousePosition.x / TGameConfig::kCellSize, 
+            relatedMousePosition.y / TGameConfig::kCellSize);
     }
 
     bool IsMouseInsideBoard(const Renderer &renderer) const
     {
         sf::Vector2i mousePosition = GetMouseCellPosition(renderer);
-        return mousePosition.x >= 0 && mousePosition.x < TGameConfig::BOARD_WIDTH &&
-               mousePosition.y >= 0 && mousePosition.y < TGameConfig::BOARD_HEIGHT;
+        return mousePosition.x >= 0 && mousePosition.x < TGameConfig::kBoardWidth &&
+               mousePosition.y >= 0 && mousePosition.y < TGameConfig::kBoardHeight;
     }
 
     void Update() 
     {
-        for (std::size_t i = 0; i < TGameConfig::BOARD_HEIGHT; ++i)
+        for (std::size_t i = 0; i < TGameConfig::kBoardHeight; ++i)
         {
-            for (std::size_t j = 0; j < TGameConfig::BOARD_WIDTH; ++j)
+            for (std::size_t j = 0; j < TGameConfig::kBoardWidth; ++j)
             {
                 auto &cellStack = cellStacks_[i][j];
                 auto foreground = cellStack.GetForeground();
@@ -273,15 +299,15 @@ public:
 
     void Render(Renderer& renderer) const
     {
-        for (std::size_t i = 0; i < TGameConfig::BOARD_HEIGHT; ++i)
+        for (std::size_t i = 0; i < TGameConfig::kBoardHeight; ++i)
         {
-            for (std::size_t j = 0; j < TGameConfig::BOARD_WIDTH; ++j)
+            for (std::size_t j = 0; j < TGameConfig::kBoardWidth; ++j)
             {
                 cellStacks_[i][j].Render(
                     renderer,
                     sf::Vector2f(
-                        TGameConfig::LEFT + j * TGameConfig::CELL_SIZE, 
-                        TGameConfig::TOP + i * TGameConfig::CELL_SIZE));
+                        TGameConfig::kLeftOffset + j * TGameConfig::kCellSize, 
+                        TGameConfig::kTopOffset + i * TGameConfig::kCellSize));
             }
         }
 
@@ -300,7 +326,7 @@ public:
     }
 
 private:
-    std::array<std::array<CellStack<TGameConfig>, TGameConfig::BOARD_WIDTH>, TGameConfig::BOARD_HEIGHT> cellStacks_;
+    std::array<std::array<CellStack<TGameConfig>, TGameConfig::kBoardWidth>, TGameConfig::kBoardHeight> cellStacks_;
 };
 
 template <typename TGameConfig>
@@ -330,7 +356,7 @@ public:
         int b = dis(gen) + 128;
         sf::Color color(r, g, b);
 
-        renderer.Draw(std::to_string(number_), TGameConfig::CELL_SIZE * 0.75f, color, topLeft);
+        renderer.Draw(std::to_string(number_), TGameConfig::kCellSize * 0.75f, color, topLeft);
     }
 
 private:
@@ -366,7 +392,7 @@ private:
 };
 
 template <typename TGameConfig>
-class LeftToRightConveyorCell : public IForegroundCell<TGameConfig>
+class LeftToRightConveyorCell : public ConveyorCell<TGameConfig>
 {
 public:
     bool CanRemove(const IForegroundCell<TGameConfig> &) const override
@@ -386,27 +412,32 @@ public:
         int offset = 2;
         sf::RectangleShape rectangle(
             sf::Vector2f(
-                TGameConfig::CELL_SIZE, 
-                TGameConfig::CELL_SIZE - 2 * offset));
+                TGameConfig::kCellSize, 
+                TGameConfig::kCellSize - 2 * offset));
         rectangle.setFillColor(sf::Color(128, 128, 128));
         rectangle.setPosition(topLeft + sf::Vector2f(0, offset));
         renderer.Draw(rectangle);
 
         sf::ConvexShape arrow(6);
-        arrow.setPoint(0, sf::Vector2f(TGameConfig::CELL_SIZE / 2, TGameConfig::CELL_SIZE / 2));
-        arrow.setPoint(1, sf::Vector2f(TGameConfig::CELL_SIZE / 2 - 2 * offset, offset));
-        arrow.setPoint(2, sf::Vector2f(TGameConfig::CELL_SIZE / 2, offset));
-        arrow.setPoint(3, sf::Vector2f(TGameConfig::CELL_SIZE / 2 + 2 * offset, TGameConfig::CELL_SIZE / 2));
-        arrow.setPoint(4, sf::Vector2f(TGameConfig::CELL_SIZE / 2, TGameConfig::CELL_SIZE - offset));
-        arrow.setPoint(5, sf::Vector2f(TGameConfig::CELL_SIZE / 2 - 2 * offset, TGameConfig::CELL_SIZE - offset));
+        arrow.setPoint(0, sf::Vector2f(TGameConfig::kCellSize / 2, TGameConfig::kCellSize / 2));
+        arrow.setPoint(1, sf::Vector2f(TGameConfig::kCellSize / 2 - 2 * offset, offset));
+        arrow.setPoint(2, sf::Vector2f(TGameConfig::kCellSize / 2, offset));
+        arrow.setPoint(3, sf::Vector2f(TGameConfig::kCellSize / 2 + 2 * offset, TGameConfig::kCellSize / 2));
+        arrow.setPoint(4, sf::Vector2f(TGameConfig::kCellSize / 2, TGameConfig::kCellSize - offset));
+        arrow.setPoint(5, sf::Vector2f(TGameConfig::kCellSize / 2 - 2 * offset, TGameConfig::kCellSize - offset));
         arrow.setFillColor(sf::Color(60, 60, 60));
         arrow.setPosition(topLeft);
         renderer.Draw(arrow);
     }
 };
 
+template<typename TGameConfig> 
+class BottomInConveyorCell : public ConveyorCell<TGameConfig>
+{
+};
+
 template <typename TGameConfig>
-class BottomToTopConveyorCell : public IForegroundCell<TGameConfig>
+class BottomToTopConveyorCell : public BottomInConveyorCell<TGameConfig>
 {
 public:
     bool CanRemove(const IForegroundCell<TGameConfig> &) const override
@@ -415,6 +446,13 @@ public:
     }
     void Update(std::size_t i, std::size_t j, GameBoard<TGameConfig>& board) override
     {
+        int number = ConveyorCell<TGameConfig>::Process();
+        if (number != 0 && i > 0) {
+            auto conveyorCell = dynamic_cast<BottomInConveyorCell<TGameConfig>*>(board.GetForeground(i-1, j).get());
+            if (conveyorCell) {
+                conveyorCell->EnqueueProduct(number);
+            }
+        }
     }
     void Render(
         GameRenderer<TGameConfig>& renderer, 
@@ -424,27 +462,39 @@ public:
         renderer.DrawBorder(topLeft);
 
         int offset = 2;
-        sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::CELL_SIZE - 2 * offset, TGameConfig::CELL_SIZE));
+        sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::kCellSize - 2 * offset, TGameConfig::kCellSize));
         rectangle.setFillColor(sf::Color(128, 128, 128));
         rectangle.setPosition(topLeft + sf::Vector2f(offset, 0));
         renderer.Draw(rectangle);
 
         sf::ConvexShape arrow(6);
         arrow.setPoint(0, sf::Vector2f(0, 0));
-        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::CELL_SIZE / 2));
-        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::CELL_SIZE / 2));
+        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::kCellSize / 2));
+        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::kCellSize / 2));
         arrow.setPoint(3, sf::Vector2f(2 * offset, 0));
-        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::CELL_SIZE / 2 - offset));
-        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::CELL_SIZE / 2 - offset));
+        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::kCellSize / 2 - offset));
+        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::kCellSize / 2 - offset));
         arrow.setRotation(270);
-        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::CELL_SIZE / 2, TGameConfig::CELL_SIZE / 2));
+        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::kCellSize / 2, TGameConfig::kCellSize / 2));
         arrow.setFillColor(sf::Color(60, 60, 60));
         renderer.Draw(arrow);
+
+        const auto& products = ConveyorCell<TGameConfig>::products;
+        for (std::size_t k = 0; k < products.size(); ++k) {
+            const auto& product = products[k];
+            if (product != 0) {
+                renderer.Draw(
+                    std::to_string(product), 
+                    TGameConfig::kCellSize * 0.8, 
+                    sf::Color::White, 
+                    topLeft + sf::Vector2f(0, TGameConfig::kCellSize * (-1.f + (float)(k+1) / products.size())));
+            }
+        }
     }
 };
 
 template <typename TGameConfig>
-class TopToBottomConveyorCell : public IForegroundCell<TGameConfig>
+class TopToBottomConveyorCell : public ConveyorCell<TGameConfig>
 {
 public:
     bool CanRemove(const IForegroundCell<TGameConfig> &) const override
@@ -463,18 +513,18 @@ public:
         renderer.DrawBorder(topLeft);
 
         int offset = 2;
-        sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::CELL_SIZE - 2 * offset, TGameConfig::CELL_SIZE));
+        sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::kCellSize - 2 * offset, TGameConfig::kCellSize));
         rectangle.setFillColor(sf::Color(128, 128, 128));
         rectangle.setPosition(topLeft + sf::Vector2f(offset, 0));
         renderer.Draw(rectangle);
 
         sf::ConvexShape arrow(6);
-        arrow.setPoint(0, sf::Vector2f(TGameConfig::CELL_SIZE / 2, TGameConfig::CELL_SIZE / 2));
-        arrow.setPoint(1, sf::Vector2f(offset, TGameConfig::CELL_SIZE / 2 - 2 * offset));
-        arrow.setPoint(2, sf::Vector2f(offset, TGameConfig::CELL_SIZE / 2));
-        arrow.setPoint(3, sf::Vector2f(TGameConfig::CELL_SIZE / 2, TGameConfig::CELL_SIZE / 2 + 2 * offset));
-        arrow.setPoint(4, sf::Vector2f(TGameConfig::CELL_SIZE - offset, TGameConfig::CELL_SIZE / 2));
-        arrow.setPoint(5, sf::Vector2f(TGameConfig::CELL_SIZE - offset, TGameConfig::CELL_SIZE / 2 - 2 * offset));
+        arrow.setPoint(0, sf::Vector2f(TGameConfig::kCellSize / 2, TGameConfig::kCellSize / 2));
+        arrow.setPoint(1, sf::Vector2f(offset, TGameConfig::kCellSize / 2 - 2 * offset));
+        arrow.setPoint(2, sf::Vector2f(offset, TGameConfig::kCellSize / 2));
+        arrow.setPoint(3, sf::Vector2f(TGameConfig::kCellSize / 2, TGameConfig::kCellSize / 2 + 2 * offset));
+        arrow.setPoint(4, sf::Vector2f(TGameConfig::kCellSize - offset, TGameConfig::kCellSize / 2));
+        arrow.setPoint(5, sf::Vector2f(TGameConfig::kCellSize - offset, TGameConfig::kCellSize / 2 - 2 * offset));
         arrow.setFillColor(sf::Color(60, 60, 60));
         arrow.setPosition(topLeft);
         renderer.Draw(arrow);
@@ -482,7 +532,7 @@ public:
 };
 
 template <typename TGameConfig>
-class BottomToRightConveyorCell : public IForegroundCell<TGameConfig>
+class BottomToRightConveyorCell : public ConveyorCell<TGameConfig>
 {
 public:
     bool CanRemove(const IForegroundCell<TGameConfig> &) const override
@@ -501,40 +551,37 @@ public:
 
         int offset = 2;
         sf::ConvexShape shape(6);
-        shape.setPoint(0, sf::Vector2f(offset, TGameConfig::CELL_SIZE));
+        shape.setPoint(0, sf::Vector2f(offset, TGameConfig::kCellSize));
         shape.setPoint(1, sf::Vector2f(offset, 4 * offset));
         shape.setPoint(2, sf::Vector2f(4 * offset, offset));
-        shape.setPoint(3, sf::Vector2f(TGameConfig::CELL_SIZE, offset));
-        shape.setPoint(4, sf::Vector2f(TGameConfig::CELL_SIZE, TGameConfig::CELL_SIZE - offset));
-        shape.setPoint(5, sf::Vector2f(TGameConfig::CELL_SIZE - offset, TGameConfig::CELL_SIZE));
+        shape.setPoint(3, sf::Vector2f(TGameConfig::kCellSize, offset));
+        shape.setPoint(4, sf::Vector2f(TGameConfig::kCellSize, TGameConfig::kCellSize - offset));
+        shape.setPoint(5, sf::Vector2f(TGameConfig::kCellSize - offset, TGameConfig::kCellSize));
         shape.setFillColor(sf::Color(128, 128, 128));
         shape.setPosition(topLeft);
         renderer.Draw(shape);
 
         sf::ConvexShape arrow(6);
         arrow.setPoint(0, sf::Vector2f(0, 0));
-        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::CELL_SIZE / 2));
-        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::CELL_SIZE / 2));
+        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::kCellSize / 2));
+        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::kCellSize / 2));
         arrow.setPoint(3, sf::Vector2f(2 * offset, 0));
-        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::CELL_SIZE / 2 - offset));
-        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::CELL_SIZE / 2 - offset));
+        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::kCellSize / 2 - offset));
+        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::kCellSize / 2 - offset));
         arrow.setRotation(315);
-        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::CELL_SIZE / 2 + 0.5 * offset, TGameConfig::CELL_SIZE / 2 + 0.5 * offset));
+        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::kCellSize / 2 + 0.5 * offset, TGameConfig::kCellSize / 2 + 0.5 * offset));
         arrow.setFillColor(sf::Color(60, 60, 60));
         renderer.Draw(arrow);
     }
 };
 
 template <typename TGameConfig>
-class LeftToBottomConveyorCell : public IConveyorCell<TGameConfig>
+class LeftToBottomConveyorCell : public ConveyorCell<TGameConfig>
 {
 public:
     bool CanRemove(const IForegroundCell<TGameConfig> &) const override
     {
         return true;
-    }
-    void EnqueueProduct(int number) override {
-        products_.push(number);
     }
     void Update(std::size_t i, std::size_t j, GameBoard<TGameConfig>& board) override
     {
@@ -549,34 +596,32 @@ public:
         int offset = 2;
         sf::ConvexShape shape(6);
         shape.setPoint(0, sf::Vector2f(0, offset));
-        shape.setPoint(1, sf::Vector2f(TGameConfig::CELL_SIZE - 4 * offset, offset));
-        shape.setPoint(2, sf::Vector2f(TGameConfig::CELL_SIZE - offset, 4 * offset));
-        shape.setPoint(3, sf::Vector2f(TGameConfig::CELL_SIZE - offset, TGameConfig::CELL_SIZE));
-        shape.setPoint(4, sf::Vector2f(offset, TGameConfig::CELL_SIZE));
-        shape.setPoint(5, sf::Vector2f(0, TGameConfig::CELL_SIZE - offset));
+        shape.setPoint(1, sf::Vector2f(TGameConfig::kCellSize - 4 * offset, offset));
+        shape.setPoint(2, sf::Vector2f(TGameConfig::kCellSize - offset, 4 * offset));
+        shape.setPoint(3, sf::Vector2f(TGameConfig::kCellSize - offset, TGameConfig::kCellSize));
+        shape.setPoint(4, sf::Vector2f(offset, TGameConfig::kCellSize));
+        shape.setPoint(5, sf::Vector2f(0, TGameConfig::kCellSize - offset));
         shape.setFillColor(sf::Color(128, 128, 128));
         shape.setPosition(topLeft);
         renderer.Draw(shape);
 
         sf::ConvexShape arrow(6);
         arrow.setPoint(0, sf::Vector2f(0, 0));
-        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::CELL_SIZE / 2));
-        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::CELL_SIZE / 2));
+        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::kCellSize / 2));
+        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::kCellSize / 2));
         arrow.setPoint(3, sf::Vector2f(2 * offset, 0));
-        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::CELL_SIZE / 2 - offset));
-        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::CELL_SIZE / 2 - offset));
+        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::kCellSize / 2 - offset));
+        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::kCellSize / 2 - offset));
         arrow.setRotation(45);
         arrow.setScale(1.1, 1.1);
         arrow.setFillColor(sf::Color(60, 60, 60));
-        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::CELL_SIZE / 2 - 0.5 * offset, TGameConfig::CELL_SIZE / 2 + 0.5 * offset));
+        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::kCellSize / 2 - 0.5 * offset, TGameConfig::kCellSize / 2 + 0.5 * offset));
         renderer.Draw(arrow);
     }
-private:
-    std::queue<int> products_;
 };
 
 template <typename TGameConfig>
-class TopToLeftConveyorCell : public IForegroundCell<TGameConfig>
+class TopToRightConveyorCell : public ConveyorCell<TGameConfig>
 {
 public:
     bool CanRemove(const IForegroundCell<TGameConfig> &) const override
@@ -596,10 +641,10 @@ public:
         int offset = 2;
         sf::ConvexShape shape(6);
         shape.setPoint(0, sf::Vector2f(offset, 0));
-        shape.setPoint(1, sf::Vector2f(TGameConfig::CELL_SIZE - offset, 0));
-        shape.setPoint(2, sf::Vector2f(TGameConfig::CELL_SIZE - offset, TGameConfig::CELL_SIZE - 4 * offset));
-        shape.setPoint(3, sf::Vector2f(TGameConfig::CELL_SIZE - 4 * offset, TGameConfig::CELL_SIZE - offset));
-        shape.setPoint(4, sf::Vector2f(0, TGameConfig::CELL_SIZE - offset));
+        shape.setPoint(1, sf::Vector2f(TGameConfig::kCellSize - offset, 0));
+        shape.setPoint(2, sf::Vector2f(TGameConfig::kCellSize - offset, TGameConfig::kCellSize - 4 * offset));
+        shape.setPoint(3, sf::Vector2f(TGameConfig::kCellSize - 4 * offset, TGameConfig::kCellSize - offset));
+        shape.setPoint(4, sf::Vector2f(0, TGameConfig::kCellSize - offset));
         shape.setPoint(5, sf::Vector2f(0, offset));
         shape.setFillColor(sf::Color(128, 128, 128));
         shape.setPosition(topLeft);
@@ -607,34 +652,38 @@ public:
 
         sf::ConvexShape arrow(6);
         arrow.setPoint(0, sf::Vector2f(0, 0));
-        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::CELL_SIZE / 2));
-        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::CELL_SIZE / 2));
+        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::kCellSize / 2));
+        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::kCellSize / 2));
         arrow.setPoint(3, sf::Vector2f(2 * offset, 0));
-        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::CELL_SIZE / 2 - offset));
-        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::CELL_SIZE / 2 - offset));
+        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::kCellSize / 2 - offset));
+        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::kCellSize / 2 - offset));
         arrow.setRotation(135);
         arrow.setScale(1.1, 1.1);
         arrow.setFillColor(sf::Color(60, 60, 60));
-        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::CELL_SIZE / 2 - 0.5 * offset, TGameConfig::CELL_SIZE / 2 - 0.5 * offset));
+        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::kCellSize / 2 - 0.5 * offset, TGameConfig::kCellSize / 2 - 0.5 * offset));
         renderer.Draw(arrow);
     }
 };
 
-
-
 template <typename TGameConfig>
-class RightToLeftConveyorCell : public IConveyorCell<TGameConfig>
+class RightToLeftConveyorCell : public ConveyorCell<TGameConfig>
 {
 public:
     bool CanRemove(const IForegroundCell<TGameConfig> &) const override
     {
         return true;
     }
-    void EnqueueProduct(int number) override {
-        products_.push(number);
-    }
     void Update(std::size_t i, std::size_t j, GameBoard<TGameConfig>& board) override
     {
+        int number = ConveyorCell<TGameConfig>::Process();
+        if (number != 0) {
+            if (j > 0) {
+                auto foregroundCell = dynamic_cast<IForegroundCell<TGameConfig>*>(board.GetForeground(i, j-1).get());
+                if (foregroundCell) {
+                    foregroundCell->EnqueueProduct(number);
+                }
+            }
+        }
     }
     void Render(
         GameRenderer<TGameConfig>& renderer, 
@@ -643,29 +692,39 @@ public:
     {
         renderer.DrawBorder(topLeft);
         int offset = 2;
-        sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::CELL_SIZE, TGameConfig::CELL_SIZE - 2 * offset));
+        sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::kCellSize, TGameConfig::kCellSize - 2 * offset));
         rectangle.setFillColor(sf::Color(128, 128, 128));
         rectangle.setPosition(topLeft + sf::Vector2f(0, offset));
         renderer.Draw(rectangle);
 
         sf::ConvexShape arrow(6);
         arrow.setPoint(0, sf::Vector2f(0, 0));
-        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::CELL_SIZE / 2));
-        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::CELL_SIZE / 2));
+        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::kCellSize / 2));
+        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::kCellSize / 2));
         arrow.setPoint(3, sf::Vector2f(2 * offset, 0));
-        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::CELL_SIZE / 2 - offset));
-        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::CELL_SIZE / 2 - offset));
+        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::kCellSize / 2 - offset));
+        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::kCellSize / 2 - offset));
         arrow.setRotation(180);
         arrow.setFillColor(sf::Color(60, 60, 60));
-        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::CELL_SIZE / 2, TGameConfig::CELL_SIZE / 2));
+        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::kCellSize / 2, TGameConfig::kCellSize / 2));
         renderer.Draw(arrow);
+
+        const auto& products = ConveyorCell<TGameConfig>::products;
+        for (std::size_t k = 0; k < products.size(); ++k) {
+            const auto& product = products[k];
+            if (product != 0) {
+                renderer.Draw(
+                    std::to_string(product), 
+                    TGameConfig::kCellSize * 0.8, 
+                    sf::Color::White, 
+                    topLeft + sf::Vector2f(TGameConfig::kCellSize * (-1.0f + (float)(k+1) / products.size()), 0));
+            }
+        }
     }
-private:
-    std::queue<int> products_;
 };
 
 template <typename TGameConfig>
-class RightToTopConveyorCell : public IForegroundCell<TGameConfig>
+class RightToTopConveyorCell : public ConveyorCell<TGameConfig>
 {
 public:
     bool CanRemove(const IForegroundCell<TGameConfig> &) const override
@@ -674,6 +733,13 @@ public:
     }
     void Update(std::size_t i, std::size_t j, GameBoard<TGameConfig>& board) override
     {
+        int number = ConveyorCell<TGameConfig>::Process();
+        if (number != 0 && i > 0) {
+            auto conveyorCell = dynamic_cast<BottomInConveyorCell<TGameConfig>*>(board.GetForeground(i-1, j).get());
+            if (conveyorCell) {
+                conveyorCell->EnqueueProduct(number);
+            }
+        }
     }
     void Render(
         GameRenderer<TGameConfig>& renderer, 
@@ -685,27 +751,44 @@ public:
         int offset = 2;
         sf::ConvexShape shape(6);
         shape.setPoint(0, sf::Vector2f(offset, 0));
-        shape.setPoint(1, sf::Vector2f(TGameConfig::CELL_SIZE - offset, 0));
-        shape.setPoint(2, sf::Vector2f(TGameConfig::CELL_SIZE, offset));
-        shape.setPoint(3, sf::Vector2f(TGameConfig::CELL_SIZE, TGameConfig::CELL_SIZE - offset));
-        shape.setPoint(4, sf::Vector2f(4 * offset, TGameConfig::CELL_SIZE - offset));
-        shape.setPoint(5, sf::Vector2f(offset, TGameConfig::CELL_SIZE - 4 * offset));
+        shape.setPoint(1, sf::Vector2f(TGameConfig::kCellSize - offset, 0));
+        shape.setPoint(2, sf::Vector2f(TGameConfig::kCellSize, offset));
+        shape.setPoint(3, sf::Vector2f(TGameConfig::kCellSize, TGameConfig::kCellSize - offset));
+        shape.setPoint(4, sf::Vector2f(4 * offset, TGameConfig::kCellSize - offset));
+        shape.setPoint(5, sf::Vector2f(offset, TGameConfig::kCellSize - 4 * offset));
         shape.setFillColor(sf::Color(128, 128, 128));
         shape.setPosition(topLeft);
         renderer.Draw(shape);
 
         sf::ConvexShape arrow(6);
         arrow.setPoint(0, sf::Vector2f(0, 0));
-        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::CELL_SIZE / 2));
-        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::CELL_SIZE / 2));
+        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::kCellSize / 2));
+        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::kCellSize / 2));
         arrow.setPoint(3, sf::Vector2f(2 * offset, 0));
-        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::CELL_SIZE / 2 - offset));
-        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::CELL_SIZE / 2 - offset));
+        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::kCellSize / 2 - offset));
+        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::kCellSize / 2 - offset));
         arrow.setRotation(225);
         arrow.setScale(1.1, 1.1);
         arrow.setFillColor(sf::Color(60, 60, 60));
-        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::CELL_SIZE / 2 + 0.5 * offset, TGameConfig::CELL_SIZE / 2 - 0.5 * offset));
+        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::kCellSize / 2 + 0.5 * offset, TGameConfig::kCellSize / 2 - 0.5 * offset));
         renderer.Draw(arrow);
+
+        const auto& products = ConveyorCell<TGameConfig>::products;
+        for (std::size_t k = 0; k < products.size(); ++k) {
+            const auto& product = products[k];
+            sf::Vector2f offset =
+                sf::Vector2f(
+                    0.f,
+                    TGameConfig::kCellSize * (-1.f + (float) (k+1) / products.size()));
+
+            if (product != 0) {
+                renderer.Draw(
+                    std::to_string(product), 
+                    TGameConfig::kCellSize * 0.8, 
+                    sf::Color::White, 
+                    topLeft + offset);
+            }
+        }
     }
 };
 
@@ -723,7 +806,10 @@ public:
     {
         return true;
     }
-
+    bool EnqueueProduct(int number) override
+    {
+        return false;
+    }
     void Update(
         std::size_t i, std::size_t j, 
         GameBoard<TGameConfig>& board) override
@@ -732,7 +818,7 @@ public:
         if (elapsedTime_ >= PRODUCTION_TIME) 
         {
             auto numberCell = 
-                dynamic_cast<const NumberCell<TGameConfig>*>(board.GetForeground(i, j).get());
+                dynamic_cast<const NumberCell<TGameConfig>*>(board.GetBackground(i, j).get());
 
             if (numberCell) 
             {
@@ -741,7 +827,7 @@ public:
                     case Direction::kTop:
                         if (j > 0) {
                             auto target = 
-                                dynamic_cast<RightToLeftConveyorCell<TGameConfig>*>(board.GetForeground(i, j - 1).get());
+                                dynamic_cast<ConveyorCell<TGameConfig>*>(board.GetForeground(i, j - 1).get());
                             if (target) {
                                 target->EnqueueProduct(numberCell->GetNumber());
                             }
@@ -764,7 +850,7 @@ public:
         sf::Vector2f topLeft,
         const IBackgroundCell<TGameConfig>& backgroundCell) const override
     {
-        sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::CELL_SIZE, TGameConfig::CELL_SIZE));
+        sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::kCellSize, TGameConfig::kCellSize));
         rectangle.setFillColor(sf::Color(128, 0, 0));
         rectangle.setPosition(topLeft);
         renderer.Draw(rectangle);
@@ -775,7 +861,7 @@ public:
         {
             renderer.Draw(
                 std::to_string(numberCell->GetNumber()), 
-                TGameConfig::CELL_SIZE * 0.8,
+                TGameConfig::kCellSize * 0.8,
                  sf::Color::White,
                   topLeft,
                   DIRECTION);
@@ -788,16 +874,20 @@ private:
 
 enum class PlayerAction
 {
-    BuildMiningMachine,
-    BuildLeftToRightConveyor,
-    BuildLeftToBottomConveyor,
-    BuildTopToBottomConveyor,
-    BuildTopToLeftConveyor,
-    BuildRightToLeftConveyor,
-    BuildRightToTopConveyor,
-    BuildBottomToTopConveyor,
-    BuildBottomToRightConveyor,
-    Clear,
+    BuildMiningMachine,        // M
+    BuildLeftToRightConveyor,  // 1
+    BuildLeftToTopConveyor,    // 2
+    BuildLeftToBottomConveyor, // 3
+    BuildTopToRightConveyor,   // 4
+    BuildTopToBottomConveyor,  // 5
+    BuildTopToLeftConveyor,    // 6
+    BuildRightToTopConveyor,   // q
+    BuildRightToBottomConveyor,// w
+    BuildRightToLeftConveyor,  // e
+    BuildBottomToTopConveyor,  // r
+    BuildBottomToRightConveyor,// t
+    BuildBottomToLeftConveyor, // y
+    Clear,                     // `
 };
 
 template <typename TGameConfig>
@@ -810,27 +900,29 @@ public:
 
     GameManager(sf::RenderWindow *window, sf::Font *font) : board_(), renderer_(window, font)
     {
-        static_assert(TGameConfig::BOARD_WIDTH % 2 == 0, "WIDTH must be even");
+        static_assert(TGameConfig::kBoardWidth % 2 == 0, "WIDTH must be even");
+
+        window->setFramerateLimit(TGameConfig::kFPS);
 
         BackgroundCellFactory<TGameConfig> backgroundCellFactory;
 
         // Setup Background
-        for (std::size_t i = 0; i < TGameConfig::BOARD_HEIGHT; ++i)
+        for (std::size_t i = 0; i < TGameConfig::kBoardHeight; ++i)
         {
-            for (std::size_t j = 0; j < TGameConfig::BOARD_WIDTH / 2; ++j)
+            for (std::size_t j = 0; j < TGameConfig::kBoardWidth / 2; ++j)
             {
                 std::shared_ptr<IBackgroundCell<TGameConfig>> backgroundCell =
                     backgroundCellFactory.Create();
                 board_.SetBackground(i, j, backgroundCell);
-                board_.SetBackground(i, TGameConfig::BOARD_WIDTH - 1 - j, backgroundCell);
+                board_.SetBackground(i, TGameConfig::kBoardWidth - 1 - j, backgroundCell);
             }
         }
 
         sf::Rect<int> leftCollectionCenter(
-            TGameConfig::BOARD_WIDTH / 4 - TGameConfig::GOAL_SIZE / 2,
-            TGameConfig::BOARD_HEIGHT / 2 - TGameConfig::GOAL_SIZE / 2,
-            TGameConfig::GOAL_SIZE,
-            TGameConfig::GOAL_SIZE);
+            TGameConfig::kBoardWidth / 4 - TGameConfig::kGoalSize / 2,
+            TGameConfig::kBoardHeight / 2 - TGameConfig::kGoalSize / 2,
+            TGameConfig::kGoalSize,
+            TGameConfig::kGoalSize);
 
         auto leftCollectionCenterCell = std::make_shared<CollectionCenterCell<TGameConfig>>();
 
@@ -866,8 +958,8 @@ public:
         case PlayerAction::BuildTopToBottomConveyor:
             nextForegroundCell = std::make_shared<TopToBottomConveyorCell<TGameConfig>>();
             break;
-        case PlayerAction::BuildTopToLeftConveyor:
-            nextForegroundCell = std::make_shared<TopToLeftConveyorCell<TGameConfig>>();
+        case PlayerAction::BuildTopToRightConveyor:
+            nextForegroundCell = std::make_shared<TopToRightConveyorCell<TGameConfig>>();
             break;
         case PlayerAction::BuildRightToLeftConveyor:
             nextForegroundCell = std::make_shared<RightToLeftConveyorCell<TGameConfig>>();
@@ -907,13 +999,15 @@ private:
 
 class GameConfig {
 public:
-    static constexpr std::size_t BOARD_WIDTH = 62;
-    static constexpr std::size_t BOARD_HEIGHT = 36;
-    static constexpr int CELL_SIZE = 20;
-    static constexpr int LEFT = 20;
-    static constexpr int TOP = 20;
-    static constexpr std::size_t GOAL_SIZE = 4;
-    static constexpr int PADDING_SIZE = 1;
+    static constexpr int kFPS = 30;
+    static constexpr std::size_t kBoardWidth = 62;
+    static constexpr std::size_t kBoardHeight = 36;
+    static constexpr int kCellSize = 20;
+    static constexpr int kLeftOffset = 20;
+    static constexpr int kTopOffset = 60;
+    static constexpr std::size_t kGoalSize = 4;
+    static constexpr int kBorderSize = 1;
+    static constexpr std::size_t kConveyorBufferSize = 10;
 };
 
 int main(int, char **)
@@ -966,7 +1060,7 @@ int main(int, char **)
                     playerAction = PlayerAction::BuildTopToBottomConveyor;
                     break;
                 case sf::Keyboard::Num4:
-                    playerAction = PlayerAction::BuildTopToLeftConveyor;
+                    playerAction = PlayerAction::BuildTopToRightConveyor;
                     break;
                 case sf::Keyboard::Num5:
                     playerAction = PlayerAction::BuildRightToLeftConveyor;
