@@ -541,6 +541,14 @@ public:
     }
     void Update(std::size_t i, std::size_t j, GameBoard<TGameConfig>& board) override
     {
+        int number = ConveyorCell<TGameConfig>::Process();
+        if (number != 0 && j > 0) {
+            auto conveyorCell = 
+            dynamic_cast<BottomInConveyorCell<TGameConfig>*>(board.GetForeground(i, j - 1).get());
+            if (conveyorCell) {
+                conveyorCell->EnqueueProduct(number);
+            }
+        }
     }
     void Render(
         GameRenderer<TGameConfig>& renderer, 
@@ -572,8 +580,96 @@ public:
         arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::kCellSize / 2 + 0.5 * offset, TGameConfig::kCellSize / 2 + 0.5 * offset));
         arrow.setFillColor(sf::Color(60, 60, 60));
         renderer.Draw(arrow);
+
+        const auto& products = ConveyorCell<TGameConfig>::products;
+        for (std::size_t k = 0; k < products.size(); ++k) {
+            const auto& product = products[k];
+            if (product != 0) {
+                renderer.Draw(
+                    std::to_string(product), 
+                    TGameConfig::kCellSize * 0.8, 
+                    sf::Color::White, 
+                    topLeft +
+                    sf::Vector2f(
+                        TGameConfig::kCellSize * (-1.f + (float)(k+1) / products.size()), 0));
+            }
+        }
     }
 };
+
+
+template<typename TGameConfig>
+class RightInConveyorCell : public ConveyorCell<TGameConfig>
+{
+};
+
+template <typename TGameConfig>
+class BottomToLeftConveyorCell : public ConveyorCell<TGameConfig>
+{
+public:
+    bool CanRemove(const IForegroundCell<TGameConfig> &) const override
+    {
+        return true;
+    }
+    void Update(std::size_t i, std::size_t j, GameBoard<TGameConfig>& board) override
+    {
+        int number = ConveyorCell<TGameConfig>::Process();
+        if (number != 0 && j > 0) {
+            auto conveyorCell = 
+            dynamic_cast<RightInConveyorCell<TGameConfig>*>(board.GetForeground(i, j - 1).get());
+            if (conveyorCell) {
+                conveyorCell->EnqueueProduct(number);
+            }
+        }
+    }
+    void Render(
+        GameRenderer<TGameConfig>& renderer, 
+        sf::Vector2f topLeft,
+        const IBackgroundCell<TGameConfig>& backgroundCell) const override
+    {
+        renderer.DrawBorder(topLeft);
+
+        int offset = 2;
+        sf::ConvexShape shape(6);
+        shape.setPoint(0, sf::Vector2f(0, offset));
+        shape.setPoint(1, sf::Vector2f(TGameConfig::kCellSize - 4 * offset, offset));
+        shape.setPoint(2, sf::Vector2f(TGameConfig::kCellSize - offset, 4 * offset));
+        shape.setPoint(3, sf::Vector2f(TGameConfig::kCellSize - offset, TGameConfig::kCellSize));
+        shape.setPoint(4, sf::Vector2f(offset, TGameConfig::kCellSize));
+        shape.setPoint(5, sf::Vector2f(0, TGameConfig::kCellSize - offset));
+        shape.setFillColor(sf::Color(128, 128, 128));
+        shape.setPosition(topLeft);
+        renderer.Draw(shape);
+
+        sf::ConvexShape arrow(6);
+        arrow.setPoint(0, sf::Vector2f(0, 0));
+        arrow.setPoint(1, sf::Vector2f(-2 * offset, offset - TGameConfig::kCellSize / 2));
+        arrow.setPoint(2, sf::Vector2f(0, offset - TGameConfig::kCellSize / 2));
+        arrow.setPoint(3, sf::Vector2f(2 * offset, 0));
+        arrow.setPoint(4, sf::Vector2f(0, TGameConfig::kCellSize / 2 - offset));
+        arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::kCellSize / 2 - offset));
+        arrow.setRotation(225);
+        arrow.setScale(1.1, 1.1);
+        arrow.setFillColor(sf::Color(60, 60, 60));
+        arrow.setPosition(topLeft + sf::Vector2f(TGameConfig::kCellSize / 2 + 0.5 * offset, TGameConfig::kCellSize / 2 - 0.5 * offset));
+        renderer.Draw(arrow);
+
+        const auto& products = ConveyorCell<TGameConfig>::products;
+        for (std::size_t k = 0; k < products.size(); ++k) {
+            const auto& product = products[k];
+            if (product != 0) {
+                renderer.Draw(
+                    std::to_string(product), 
+                    TGameConfig::kCellSize * 0.8, 
+                    sf::Color::White, 
+                    topLeft +
+                    sf::Vector2f(
+                        TGameConfig::kCellSize * (-1.f + (float)(k+1) / products.size()), 0));
+            }
+        }
+    }
+};
+
 
 template <typename TGameConfig>
 class LeftToBottomConveyorCell : public ConveyorCell<TGameConfig>
@@ -665,8 +761,9 @@ public:
     }
 };
 
+
 template <typename TGameConfig>
-class RightToLeftConveyorCell : public ConveyorCell<TGameConfig>
+class RightToLeftConveyorCell : public RightInConveyorCell<TGameConfig>
 {
 public:
     bool CanRemove(const IForegroundCell<TGameConfig> &) const override
@@ -678,9 +775,9 @@ public:
         int number = ConveyorCell<TGameConfig>::Process();
         if (number != 0) {
             if (j > 0) {
-                auto foregroundCell = dynamic_cast<IForegroundCell<TGameConfig>*>(board.GetForeground(i, j-1).get());
-                if (foregroundCell) {
-                    foregroundCell->EnqueueProduct(number);
+                auto rightIn = dynamic_cast<RightInConveyorCell<TGameConfig>*>(board.GetForeground(i, j-1).get());
+                if (rightIn) {
+                    rightIn->EnqueueProduct(number);
                 }
             }
         }
@@ -724,7 +821,7 @@ public:
 };
 
 template <typename TGameConfig>
-class RightToTopConveyorCell : public ConveyorCell<TGameConfig>
+class RightToTopConveyorCell : public RightInConveyorCell<TGameConfig>
 {
 public:
     bool CanRemove(const IForegroundCell<TGameConfig> &) const override
@@ -834,10 +931,31 @@ public:
                         }
                         break;
                     case Direction::kRight:
+                        if (i > 0) {
+                            auto target = 
+                                dynamic_cast<ConveyorCell<TGameConfig>*>(board.GetForeground(i - 1, j).get());
+                            if (target) {
+                                target->EnqueueProduct(numberCell->GetNumber());
+                            }
+                        }
                         break;
                     case Direction::kBottom:
+                        if (j + 1 < TGameConfig::kBoardWidth) {
+                            auto target = 
+                                dynamic_cast<ConveyorCell<TGameConfig>*>(board.GetForeground(i, j + 1).get());
+                            if (target) {
+                                target->EnqueueProduct(numberCell->GetNumber());
+                            }
+                        }
                         break;
                     case Direction::kLeft:
+                        if (i + 1 < TGameConfig::kBoardHeight) {
+                            auto target = 
+                                dynamic_cast<ConveyorCell<TGameConfig>*>(board.GetForeground(i + 1, j).get());
+                            if (target) {
+                                target->EnqueueProduct(numberCell->GetNumber());
+                            }
+                        }
                         break;
                 }
             }
@@ -874,7 +992,10 @@ private:
 
 enum class PlayerAction
 {
-    BuildMiningMachine,        // M
+    BuildLeftOutMiningMachine,        // J
+    BuildTopOutMiningMachine,         // I
+    BuildRightOutMiningMachine,       // L
+    BuildBottomOutMiningMachine,      // K
     BuildLeftToRightConveyor,  // 1
     BuildLeftToTopConveyor,    // 2
     BuildLeftToBottomConveyor, // 3
@@ -946,8 +1067,17 @@ public:
         std::shared_ptr<IForegroundCell<TGameConfig>> nextForegroundCell = nullptr;
         switch (playerAction)
         {
-        case PlayerAction::BuildMiningMachine:
+        case PlayerAction::BuildLeftOutMiningMachine:
             nextForegroundCell = std::make_shared<MiningMachineCell<TGameConfig, Direction::kTop>>();
+            break;
+        case PlayerAction::BuildTopOutMiningMachine:
+            nextForegroundCell = std::make_shared<MiningMachineCell<TGameConfig, Direction::kRight>>();
+            break;
+        case PlayerAction::BuildRightOutMiningMachine:
+            nextForegroundCell = std::make_shared<MiningMachineCell<TGameConfig, Direction::kBottom>>();
+            break;
+        case PlayerAction::BuildBottomOutMiningMachine:
+            nextForegroundCell = std::make_shared<MiningMachineCell<TGameConfig, Direction::kLeft>>();
             break;
         case PlayerAction::BuildLeftToRightConveyor:
             nextForegroundCell = std::make_shared<LeftToRightConveyorCell<TGameConfig>>();
@@ -972,6 +1102,9 @@ public:
             break;
         case PlayerAction::BuildBottomToRightConveyor:
             nextForegroundCell = std::make_shared<BottomToRightConveyorCell<TGameConfig>>();
+            break;
+        case PlayerAction::BuildBottomToLeftConveyor:
+            nextForegroundCell = std::make_shared<BottomToLeftConveyorCell<TGameConfig>>();
             break;
         case PlayerAction::Clear:
             nextForegroundCell = nullptr;
@@ -1047,32 +1180,50 @@ int main(int, char **)
                 case sf::Keyboard::Tilde:
                     playerAction = PlayerAction::Clear;
                     break;
-                case sf::Keyboard::M:
-                    playerAction = PlayerAction::BuildMiningMachine;
+                case sf::Keyboard::J:
+                    playerAction = PlayerAction::BuildLeftOutMiningMachine;
+                    break;
+                case sf::Keyboard::I:
+                    playerAction = PlayerAction::BuildTopOutMiningMachine;
+                    break;
+                case sf::Keyboard::L:
+                    playerAction = PlayerAction::BuildRightOutMiningMachine;
+                    break;
+                case sf::Keyboard::K:
+                    playerAction = PlayerAction::BuildBottomOutMiningMachine;
+                    break;
+                case sf::Keyboard::S:
+                    playerAction = PlayerAction::BuildTopToBottomConveyor;
+                    break;
+                case sf::Keyboard::A:
+                    playerAction = PlayerAction::BuildRightToLeftConveyor;
+                    break;
+                case sf::Keyboard::W:
+                    playerAction = PlayerAction::BuildBottomToTopConveyor;
                     break;
                 case sf::Keyboard::Num1:
-                    playerAction = PlayerAction::BuildLeftToRightConveyor;
+                    playerAction = PlayerAction::BuildBottomToRightConveyor;
                     break;
                 case sf::Keyboard::Num2:
                     playerAction = PlayerAction::BuildLeftToBottomConveyor;
                     break;
                 case sf::Keyboard::Num3:
-                    playerAction = PlayerAction::BuildTopToBottomConveyor;
+                    playerAction = PlayerAction::BuildTopToLeftConveyor;
                     break;
                 case sf::Keyboard::Num4:
-                    playerAction = PlayerAction::BuildTopToRightConveyor;
-                    break;
-                case sf::Keyboard::Num5:
-                    playerAction = PlayerAction::BuildRightToLeftConveyor;
-                    break;
-                case sf::Keyboard::Num6:
                     playerAction = PlayerAction::BuildRightToTopConveyor;
                     break;
-                case sf::Keyboard::Num7:
-                    playerAction = PlayerAction::BuildBottomToTopConveyor;
+                case sf::Keyboard::Z:
+                    playerAction = PlayerAction::BuildRightToBottomConveyor;
                     break;
-                case sf::Keyboard::Num8:
-                    playerAction = PlayerAction::BuildBottomToRightConveyor;
+                case sf::Keyboard::X:
+                    playerAction = PlayerAction::BuildTopToRightConveyor;
+                    break;
+                case sf::Keyboard::C:
+                    playerAction = PlayerAction::BuildLeftToTopConveyor;
+                    break;
+                case sf::Keyboard::V:
+                    playerAction = PlayerAction::BuildBottomToLeftConveyor;
                     break;
                 default:
                     break;
