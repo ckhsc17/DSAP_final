@@ -60,20 +60,7 @@ public:
     {
         sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::kCellSize, TGameConfig::kCellSize));
         rectangle.setOrigin(rectangle.getLocalBounds().width / 2, rectangle.getLocalBounds().height / 2);
-        switch (direction)
-        {
-        case Direction::kTop:
-            rectangle.rotate(90);
-            break;
-        case Direction::kRight:
-            rectangle.rotate(180);
-            break;
-        case Direction::kBottom:
-            rectangle.rotate(270);
-            break;
-        case Direction::kLeft:
-            break;
-        }
+        rectangle.rotate(static_cast<int>(direction) * 90);
         rectangle.setFillColor(color);
         rectangle.setPosition(center);
         DrawShape(rectangle);
@@ -89,22 +76,8 @@ public:
         triangle.setPoint(0, sf::Vector2f(0, 0));
         triangle.setPoint(1, sf::Vector2f(TGameConfig::kCellSize, 0));
         triangle.setPoint(2, sf::Vector2f(TGameConfig::kCellSize, TGameConfig::kCellSize));
-
         triangle.setOrigin(triangle.getLocalBounds().width / 2, triangle.getLocalBounds().height / 2);
-        switch (direction)
-        {
-        case Direction::kTop:
-            triangle.rotate(90);
-            break;
-        case Direction::kRight:
-            triangle.rotate(180);
-            break;
-        case Direction::kBottom:
-            triangle.rotate(270);
-            break;
-        case Direction::kLeft:
-            break;
-        }
+        triangle.rotate(static_cast<int>(direction) * 90);
         triangle.setFillColor(color);
         triangle.setPosition(center);
         DrawShape(triangle);
@@ -131,20 +104,7 @@ public:
         arrow.setPoint(3, sf::Vector2f(2 * offset, 0));
         arrow.setPoint(4, sf::Vector2f(0, TGameConfig::kCellSize / 2 - offset));
         arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::kCellSize / 2 - offset));
-        switch (direction)
-        {
-        case Direction::kTop:
-            arrow.rotate(270);
-            break;
-        case Direction::kRight:
-            break;
-        case Direction::kBottom:
-            arrow.rotate(90);
-            break;
-        case Direction::kLeft:
-            arrow.rotate(180);
-            break;
-        }
+        arrow.rotate((static_cast<int>(direction) + 3) * 90);
         arrow.setFillColor(sf::Color(60, 60, 60));
         arrow.setPosition(center);
         DrawShape(arrow);
@@ -170,9 +130,7 @@ public:
 
         sf::FloatRect rect = text.getLocalBounds();
         text.setOrigin(rect.left + rect.width / 2.0f, rect.top + rect.height / 2.0f);
-        text.setPosition(
-            topLeft.x + TGameConfig::kCellSize / 2.0f,
-            topLeft.y + TGameConfig::kCellSize / 2.0f);
+        text.setPosition(topLeft + sf::Vector2f(TGameConfig::kCellSize / 2.0f, TGameConfig::kCellSize / 2.0f));
         text.setRotation(90 * static_cast<int>(direction));
         window_->draw(text);
     }
@@ -800,8 +758,10 @@ public:
         return true;
     }
 
-    bool Build(std::shared_ptr<ForegroundCell<TGameConfig>> cell)
+    template<typename TCell, typename... TArgs>
+    bool Build(sf::Vector2i cellPosition, TArgs ...args)
     {
+        auto cell = std::make_shared<TCell>(cellPosition, args...);
         if (!CanBuild(cell))
             return false;
 
@@ -1136,15 +1096,10 @@ public:
         sf::Vector2i collectionCenterTopLeftCellPosition =
             sf::Vector2i(CollectionCenterConfig::kLeft, CollectionCenterConfig::kTop);
 
-        auto collectionCenterCell =
-            std::make_shared<CollectionCenterCell<TGameConfig>>(
-                collectionCenterTopLeftCellPosition,
-                [&]()
-                { AddScore(); },
-                [&]()
-                { return scores_; });
-
-        board_.Build(collectionCenterCell);
+        board_.template Build<CollectionCenterCell<TGameConfig>>(
+            collectionCenterTopLeftCellPosition, 
+            [&](){ AddScore(); },
+            [&](){ return scores_; });
     }
 
     void AddScore()
@@ -1164,40 +1119,40 @@ public:
         switch (playerAction)
         {
         case PlayerAction::BuildLeftOutMiningMachine:
-            board_.Build(std::make_shared<MiningMachineCell<TGameConfig, Direction::kLeft>>(mouseCellPosition));
+            board_.template Build<MiningMachineCell<TGameConfig, Direction::kLeft>>(mouseCellPosition);
             break;
         case PlayerAction::BuildTopOutMiningMachine:
-            board_.Build(std::make_shared<MiningMachineCell<TGameConfig, Direction::kTop>>(mouseCellPosition));
+            board_.template Build<MiningMachineCell<TGameConfig, Direction::kTop>>(mouseCellPosition);
             break;
         case PlayerAction::BuildRightOutMiningMachine:
-            board_.Build(std::make_shared<MiningMachineCell<TGameConfig, Direction::kRight>>(mouseCellPosition));
+            board_.template Build<MiningMachineCell<TGameConfig, Direction::kRight>>(mouseCellPosition);
             break;
         case PlayerAction::BuildBottomOutMiningMachine:
-            board_.Build(std::make_shared<MiningMachineCell<TGameConfig, Direction::kBottom>>(mouseCellPosition));
+            board_.template Build<MiningMachineCell<TGameConfig, Direction::kBottom>>(mouseCellPosition);
             break;
         case PlayerAction::BuildLeftToRightConveyor:
-            board_.Build(std::make_shared<ConveyorCell<TGameConfig, Direction::kRight>>(mouseCellPosition));
+            board_.template Build<ConveyorCell<TGameConfig, Direction::kRight>>(mouseCellPosition);
             break;
         case PlayerAction::BuildTopToBottomConveyor:
-            board_.Build(std::make_shared<ConveyorCell<TGameConfig, Direction::kBottom>>(mouseCellPosition));
+            board_.template Build<ConveyorCell<TGameConfig, Direction::kBottom>>(mouseCellPosition);
             break;
         case PlayerAction::BuildRightToLeftConveyor:
-            board_.Build(std::make_shared<ConveyorCell<TGameConfig, Direction::kLeft>>(mouseCellPosition));
+            board_.template Build<ConveyorCell<TGameConfig, Direction::kLeft>>(mouseCellPosition);
             break;
         case PlayerAction::BuildBottomToTopConveyor:
-            board_.Build(std::make_shared<ConveyorCell<TGameConfig, Direction::kTop>>(mouseCellPosition));
+            board_.template Build<ConveyorCell<TGameConfig, Direction::kTop>>(mouseCellPosition);
             break;
         case PlayerAction::BuildTopOutCombiner:
-            board_.Build(std::make_shared<CombinerCell<TGameConfig, Direction::kTop>>(mouseCellPosition));
+            board_.template Build<CombinerCell<TGameConfig, Direction::kTop>>(mouseCellPosition);
             break;
         case PlayerAction::BuildRightOutCombiner:
-            board_.Build(std::make_shared<CombinerCell<TGameConfig, Direction::kRight>>(mouseCellPosition));
+            board_.template Build<CombinerCell<TGameConfig, Direction::kRight>>(mouseCellPosition);
             break;
         case PlayerAction::BuildBottomOutCombiner:
-            board_.Build(std::make_shared<CombinerCell<TGameConfig, Direction::kBottom>>(mouseCellPosition));
+            board_.template Build<CombinerCell<TGameConfig, Direction::kBottom>>(mouseCellPosition);
             break;
         case PlayerAction::BuildLeftOutCombiner:
-            board_.Build(std::make_shared<CombinerCell<TGameConfig, Direction::kLeft>>(mouseCellPosition));
+            board_.template Build<CombinerCell<TGameConfig, Direction::kLeft>>(mouseCellPosition);
             break;
         case PlayerAction::Clear:
             board_.Remove(mouseCellPosition);
@@ -1252,6 +1207,22 @@ int main(int, char **)
 
     GameManager<GameConfig> gameManager(&window, &font);
 
+    const std::map<sf::Keyboard::Key, PlayerAction> playerActionKeyboardMap = {
+        {sf::Keyboard::J, PlayerAction::BuildLeftOutMiningMachine},
+        {sf::Keyboard::I, PlayerAction::BuildTopOutMiningMachine},
+        {sf::Keyboard::L, PlayerAction::BuildRightOutMiningMachine},
+        {sf::Keyboard::K, PlayerAction::BuildBottomOutMiningMachine},
+        {sf::Keyboard::D, PlayerAction::BuildLeftToRightConveyor},
+        {sf::Keyboard::S, PlayerAction::BuildTopToBottomConveyor},
+        {sf::Keyboard::A, PlayerAction::BuildRightToLeftConveyor},
+        {sf::Keyboard::W, PlayerAction::BuildBottomToTopConveyor},
+        {sf::Keyboard::Num1, PlayerAction::BuildTopOutCombiner},
+        {sf::Keyboard::Num2, PlayerAction::BuildRightOutCombiner},
+        {sf::Keyboard::Num3, PlayerAction::BuildBottomOutCombiner},
+        {sf::Keyboard::Num4, PlayerAction::BuildLeftOutCombiner},
+        {sf::Keyboard::Backspace, PlayerAction::Clear},
+    };
+
     while (window.isOpen())
     {
         sf::Event event;
@@ -1270,49 +1241,8 @@ int main(int, char **)
 
             if (event.type == sf::Event::KeyReleased)
             {
-                switch (event.key.code)
-                {
-                case sf::Keyboard::Tilde:
-                    playerAction = PlayerAction::Clear;
-                    break;
-                case sf::Keyboard::J:
-                    playerAction = PlayerAction::BuildLeftOutMiningMachine;
-                    break;
-                case sf::Keyboard::I:
-                    playerAction = PlayerAction::BuildTopOutMiningMachine;
-                    break;
-                case sf::Keyboard::L:
-                    playerAction = PlayerAction::BuildRightOutMiningMachine;
-                    break;
-                case sf::Keyboard::K:
-                    playerAction = PlayerAction::BuildBottomOutMiningMachine;
-                    break;
-                case sf::Keyboard::S:
-                    playerAction = PlayerAction::BuildTopToBottomConveyor;
-                    break;
-                case sf::Keyboard::A:
-                    playerAction = PlayerAction::BuildRightToLeftConveyor;
-                    break;
-                case sf::Keyboard::W:
-                    playerAction = PlayerAction::BuildBottomToTopConveyor;
-                    break;
-                case sf::Keyboard::D:
-                    playerAction = PlayerAction::BuildLeftToRightConveyor;
-                    break;
-                case sf::Keyboard::Num1:
-                    playerAction = PlayerAction::BuildTopOutCombiner;
-                    break;
-                case sf::Keyboard::Num2:
-                    playerAction = PlayerAction::BuildRightOutCombiner;
-                    break;
-                case sf::Keyboard::Num3:
-                    playerAction = PlayerAction::BuildBottomOutCombiner;
-                    break;
-                case sf::Keyboard::Num4:
-                    playerAction = PlayerAction::BuildLeftOutCombiner;
-                    break;
-                default:
-                    break;
+                if (playerActionKeyboardMap.count(event.key.code)) {
+                    playerAction = playerActionKeyboardMap.at(event.key.code);
                 }
             }
             if (event.type == sf::Event::Closed)
