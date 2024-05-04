@@ -53,26 +53,61 @@ public:
         window_->draw(rectangle);
     }
 
-    void DrawRectangle(sf::Vector2f center, Direction direction)
+    void DrawRectangle(
+        sf::Vector2f center,
+        Direction direction,
+        sf::Color color)
     {
         sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::kCellSize, TGameConfig::kCellSize));
         rectangle.setOrigin(rectangle.getLocalBounds().width / 2, rectangle.getLocalBounds().height / 2);
-        switch (direction) {
-            case Direction::kTop:
-                rectangle.rotate(90);
-                break;
-            case Direction::kRight:
-                rectangle.rotate(180);
-                break;
-            case Direction::kBottom:
-                rectangle.rotate(270);
-                break;
-            case Direction::kLeft:
-                break;
+        switch (direction)
+        {
+        case Direction::kTop:
+            rectangle.rotate(90);
+            break;
+        case Direction::kRight:
+            rectangle.rotate(180);
+            break;
+        case Direction::kBottom:
+            rectangle.rotate(270);
+            break;
+        case Direction::kLeft:
+            break;
         }
-        rectangle.setFillColor(sf::Color(128, 128, 128));
+        rectangle.setFillColor(color);
         rectangle.setPosition(center);
         DrawShape(rectangle);
+    }
+
+    void DrawTriangle(
+        sf::Vector2f center,
+        Direction direction,
+        sf::Color color)
+    {
+        sf::ConvexShape triangle;
+        triangle.setPointCount(3);
+        triangle.setPoint(0, sf::Vector2f(0, 0));
+        triangle.setPoint(1, sf::Vector2f(TGameConfig::kCellSize, 0));
+        triangle.setPoint(2, sf::Vector2f(TGameConfig::kCellSize, TGameConfig::kCellSize));
+
+        triangle.setOrigin(triangle.getLocalBounds().width / 2, triangle.getLocalBounds().height / 2);
+        switch (direction)
+        {
+        case Direction::kTop:
+            triangle.rotate(90);
+            break;
+        case Direction::kRight:
+            triangle.rotate(180);
+            break;
+        case Direction::kBottom:
+            triangle.rotate(270);
+            break;
+        case Direction::kLeft:
+            break;
+        }
+        triangle.setFillColor(color);
+        triangle.setPosition(center);
+        DrawShape(triangle);
     }
 
     void DrawCircle(sf::Vector2f center, float radius, sf::Color color)
@@ -96,18 +131,19 @@ public:
         arrow.setPoint(3, sf::Vector2f(2 * offset, 0));
         arrow.setPoint(4, sf::Vector2f(0, TGameConfig::kCellSize / 2 - offset));
         arrow.setPoint(5, sf::Vector2f(-2 * offset, TGameConfig::kCellSize / 2 - offset));
-        switch (direction) {
-            case Direction::kTop:
-                arrow.rotate(270);
-                break;
-            case Direction::kRight:
-                break;
-            case Direction::kBottom:
-                arrow.rotate(90);
-                break;
-            case Direction::kLeft:
-                arrow.rotate(180);
-                break;
+        switch (direction)
+        {
+        case Direction::kTop:
+            arrow.rotate(270);
+            break;
+        case Direction::kRight:
+            break;
+        case Direction::kBottom:
+            arrow.rotate(90);
+            break;
+        case Direction::kLeft:
+            arrow.rotate(180);
+            break;
         }
         arrow.setFillColor(sf::Color(60, 60, 60));
         arrow.setPosition(center);
@@ -167,20 +203,20 @@ public:
     ForegroundCell(sf::Vector2i topLeftCellPosition) : topLeftCellPosition_(topLeftCellPosition) {}
 
     virtual std::size_t GetWidth() const { return 1; }
-    
+
     virtual std::size_t GetHeight() const { return 1; }
 
-    virtual sf::Vector2i GetTopLeftCellPosition() const { return topLeftCellPosition_;}
+    virtual sf::Vector2i GetTopLeftCellPosition() const { return topLeftCellPosition_; }
 
     virtual bool CanRemove() const = 0;
 
-    virtual std::size_t GetCapacity() const = 0;
+    virtual std::size_t GetCapacity(sf::Vector2i cellPosition) const = 0;
 
-    virtual void ReceiveProduct(int number) = 0;
+    virtual void ReceiveProduct(sf::Vector2i cellPosition, int number) = 0;
 
-    virtual void UpdatePassOne(std::size_t i, std::size_t j, GameBoard<TGameConfig> &board) = 0;
+    virtual void UpdatePassOne(sf::Vector2i cellPosition, GameBoard<TGameConfig> &board) = 0;
 
-    virtual void UpdatePassTwo(std::size_t i, std::size_t j, GameBoard<TGameConfig> &board) = 0;
+    virtual void UpdatePassTwo(sf::Vector2i cellPosition, GameBoard<TGameConfig> &board) = 0;
 
     virtual void RenderPassOne(
         GameRenderer<TGameConfig> &renderer,
@@ -201,97 +237,74 @@ struct TransferedProduct
     int number;
 };
 
-template<typename TGameConfig, Direction kDirection>
-void SendProduct(std::size_t i, std::size_t j, GameBoard<TGameConfig>& board, int product) {
+template <typename TGameConfig, Direction kDirection>
+void SendProduct(sf::Vector2i cellPosition, GameBoard<TGameConfig> &board, int product)
+{
+    sf::Vector2i targetCellPosition = cellPosition;
+
     switch (kDirection)
     {
     case Direction::kTop:
-        if (i > 0)
-        {
-            auto foregroundCell = board.GetForeground(i - 1, j);
-            if (foregroundCell) 
-            {
-                foregroundCell->ReceiveProduct(product);
-            }
-        }
+        if (cellPosition.y <= 0)
+            return;
+        targetCellPosition += sf::Vector2i(0, -1);
         break;
     case Direction::kRight:
-        if (j + 1 < TGameConfig::kBoardWidth)
-        {
-            auto foregroundCell = board.GetForeground(i, j + 1);
-            if (foregroundCell)
-            {
-                foregroundCell->ReceiveProduct(product);
-            }
-        }
+        if (cellPosition.x + 1 >= TGameConfig::kBoardWidth)
+            return;
+        targetCellPosition += sf::Vector2i(1, 0);
         break;
     case Direction::kBottom:
-        if (i + 1 < TGameConfig::kBoardHeight)
-        {
-            auto foregroundCell = board.GetForeground(i + 1, j);
-            if (foregroundCell) 
-            {
-                foregroundCell->ReceiveProduct(product);
-            }
-        }
+        if (cellPosition.y + 1 >= TGameConfig::kBoardHeight)
+            return;
+        targetCellPosition += sf::Vector2i(0, 1);
         break;
     case Direction::kLeft:
-        if (j > 0)
-        {
-            auto foregroundCell = board.GetForeground(i, j - 1);
-            if (foregroundCell)
-            {
-                foregroundCell->ReceiveProduct(product);
-            }
-        }
-        break;
+        if (cellPosition.x <= 0)
+            return;
+        targetCellPosition += sf::Vector2i(-1, 0);
+    }
+
+    auto foregroundCell = board.GetForeground(targetCellPosition);
+
+    if (foregroundCell)
+    {
+        foregroundCell->ReceiveProduct(targetCellPosition, product);
     }
 }
 
-template<typename TGameConfig, Direction kDirection>
-std::size_t GetNeighborCapacity(std::size_t i, std::size_t j, GameBoard<TGameConfig>& board) {
+template <typename TGameConfig, Direction kDirection>
+std::size_t GetNeighborCapacity(sf::Vector2i cellPosition, GameBoard<TGameConfig> &board)
+{
+    sf::Vector2i neighborCellPosition = cellPosition;
+
     switch (kDirection)
     {
     case Direction::kTop:
-        if (i > 0)
-        {
-            auto foregroundCell = board.GetForeground(i - 1, j);
-            if (foregroundCell) 
-            {
-                return foregroundCell->GetCapacity();
-            }
-        }
+        if (cellPosition.y <= 0)
+            return 0;
+        neighborCellPosition += sf::Vector2i(0, -1);
         break;
     case Direction::kRight:
-        if (j + 1 < TGameConfig::kBoardWidth)
-        {
-            auto foregroundCell = board.GetForeground(i, j + 1);
-            if (foregroundCell)
-            {
-                return foregroundCell->GetCapacity();
-            }
-        }
+        neighborCellPosition += sf::Vector2i(1, 0);
         break;
     case Direction::kBottom:
-        if (i + 1 < TGameConfig::kBoardHeight)
-        {
-            auto foregroundCell = board.GetForeground(i + 1, j);
-            if (foregroundCell) 
-            {
-                return foregroundCell->GetCapacity();
-            }
-        }
+        if (cellPosition.y + 1 >= TGameConfig::kBoardHeight)
+            return 0;
+        neighborCellPosition += sf::Vector2i(0, 1);
         break;
     case Direction::kLeft:
-        if (j > 0)
-        {
-            auto foregroundCell = board.GetForeground(i, j - 1);
-            if (foregroundCell)
-            {
-                return foregroundCell->GetCapacity();
-            }
-        }
+        if (cellPosition.x <= 0)
+            return 0;
+        neighborCellPosition += sf::Vector2i(-1, 0);
         break;
+    }
+
+    auto foregroundCell = board.GetForeground(neighborCellPosition);
+
+    if (foregroundCell)
+    {
+        return foregroundCell->GetCapacity(neighborCellPosition);
     }
     return 0;
 }
@@ -307,7 +320,7 @@ public:
         return true;
     }
 
-    std::size_t GetCapacity() const override
+    std::size_t GetCapacity(sf::Vector2i cellPosition) const override
     {
         for (std::size_t i = 0; i < products_.size(); ++i)
         {
@@ -319,29 +332,29 @@ public:
         return products_.size();
     }
 
-    void ReceiveProduct(int number) override
-    {       
+    void ReceiveProduct(sf::Vector2i cellPosition, int number) override
+    {
         assert(number != 0);
         assert(products_.back() == 0);
         products_.back() = number;
     }
 
-    void UpdatePassOne(std::size_t i, std::size_t j, GameBoard<TGameConfig> &board) override
+    void UpdatePassOne(sf::Vector2i cellPosition, GameBoard<TGameConfig> &board) override
     {
-        std::size_t capacity = GetNeighborCapacity<TGameConfig, kOutDirection>(i, j, board);
+        std::size_t capacity = GetNeighborCapacity<TGameConfig, kOutDirection>(cellPosition, board);
 
-        if (capacity >= 3) 
+        if (capacity >= 3)
         {
             if (products_[0] != 0)
             {
-                SendProduct<TGameConfig, kOutDirection>(i, j, board, products_[0]);
+                SendProduct<TGameConfig, kOutDirection>(cellPosition, board, products_[0]);
                 products_[0] = 0;
             }
         }
 
         if (capacity >= 2)
         {
-            if (products_[0] == 0 && products_[1] != 0) 
+            if (products_[0] == 0 && products_[1] != 0)
             {
                 std::swap(products_[0], products_[1]);
             }
@@ -354,9 +367,9 @@ public:
                 std::swap(products_[1], products_[2]);
             }
         }
-    }   
+    }
 
-    void UpdatePassTwo(std::size_t i, std::size_t j, GameBoard<TGameConfig> &board) override
+    void UpdatePassTwo(sf::Vector2i cellPosition, GameBoard<TGameConfig> &board) override
     {
         for (std::size_t k = 3; k < products_.size(); ++k)
         {
@@ -380,7 +393,7 @@ public:
 
         sf::Vector2f center = topLeft + sf::Vector2f(TGameConfig::kCellSize / 2, TGameConfig::kCellSize / 2);
 
-        renderer.DrawRectangle(center, kOutDirection);
+        renderer.DrawRectangle(center, kOutDirection, sf::Color(128, 128, 128));
 
         renderer.DrawArrow(center, kOutDirection);
     }
@@ -397,23 +410,24 @@ public:
         {
             int product;
             sf::Vector2f offset;
-            switch (kOutDirection) {
-                case Direction::kTop:
-                    product = products_[k];
-                    offset = sf::Vector2f(0, TGameConfig::kCellSize * (-1.0f + (float)(k + 1) / products_.size()));
-                    break;
-                case Direction::kRight:
-                    product = products_[products_.size() - 1 - k];
-                    offset = sf::Vector2f(TGameConfig::kCellSize * ((float)k / products_.size()), 0);
-                    break;
-                case Direction::kBottom:
-                    product = products_[products_.size() - 1 - k];
-                    offset = sf::Vector2f(0, TGameConfig::kCellSize * ((float)k / products_.size()));
-                    break;
-                case Direction::kLeft:
-                    product = products_[k];
-                    offset = sf::Vector2f(TGameConfig::kCellSize * (-1.0f + (float)(k + 1) / products_.size()), 0);
-                    break;
+            switch (kOutDirection)
+            {
+            case Direction::kTop:
+                product = products_[k];
+                offset = sf::Vector2f(0, TGameConfig::kCellSize * (-1.0f + (float)(k + 1) / products_.size()));
+                break;
+            case Direction::kRight:
+                product = products_[products_.size() - 1 - k];
+                offset = sf::Vector2f(TGameConfig::kCellSize * ((float)k / products_.size()), 0);
+                break;
+            case Direction::kBottom:
+                product = products_[products_.size() - 1 - k];
+                offset = sf::Vector2f(0, TGameConfig::kCellSize * ((float)k / products_.size()));
+                break;
+            case Direction::kLeft:
+                product = products_[k];
+                offset = sf::Vector2f(TGameConfig::kCellSize * (-1.0f + (float)(k + 1) / products_.size()), 0);
+                break;
             }
 
             if (product != 0)
@@ -421,9 +435,7 @@ public:
                 renderer.DrawCircle(
                     topLeft + offset + sf::Vector2f(TGameConfig::kCellSize / 2, TGameConfig::kCellSize / 2),
                     TGameConfig::kCellSize * 0.6,
-                    product % TGameConfig::kCommonDivisor == 0 ?
-                        sf::Color(30, 60, 30) :
-                        sf::Color(30, 30, 30) );
+                    product % TGameConfig::kCommonDivisor == 0 ? sf::Color(30, 60, 30) : sf::Color(30, 30, 30));
 
                 renderer.DrawText(
                     std::to_string(product),
@@ -433,153 +445,133 @@ public:
             }
         }
     }
+
 protected:
     std::array<int, TGameConfig::kConveyorBufferSize> products_;
 };
-
 
 template <typename TGameConfig, Direction kOutDirection>
 class CombinerCell : public ForegroundCell<TGameConfig>
 {
 public:
-    CombinerCell(sf::Vector2i topLeftCellPosition) : ForegroundCell<TGameConfig>(topLeftCellPosition) {}
+    CombinerCell(sf::Vector2i topLeftCellPosition) : ForegroundCell<TGameConfig>(topLeftCellPosition), products_{} {}
+
+    std::size_t GetWidth() const override
+    {
+        return kOutDirection == Direction::kTop || kOutDirection == Direction::kBottom ? 2 : 1;
+    }
+
+    std::size_t GetHeight() const override
+    {
+        return kOutDirection == Direction::kTop || kOutDirection == Direction::kBottom ? 1 : 2;
+    }
 
     bool CanRemove() const override
     {
         return true;
     }
 
-    std::size_t GetCapacity() const override
+    bool IsMainCell(sf::Vector2i cellPosition) const
     {
-        for (std::size_t i = 0; i < products_.size(); ++i)
+        switch (kOutDirection)
         {
-            if (products_[products_.size() - 1 - i] != 0)
-            {
-                return i;
-            }
+        case Direction::kTop:
+        case Direction::kRight:
+            return cellPosition != ForegroundCell<TGameConfig>::topLeftCellPosition_;
+        case Direction::kBottom:
+        case Direction::kLeft:
+            return cellPosition == ForegroundCell<TGameConfig>::topLeftCellPosition_;
         }
-        return products_.size();
     }
 
-    void ReceiveProduct(int number) override
-    {       
+    std::size_t GetCapacity(sf::Vector2i cellPosition) const override
+    {
+        if (IsMainCell(cellPosition))
+        {
+            if (products_[0] == 0)
+            {
+                return TGameConfig::kConveyorBufferSize;
+            }
+            return 0;
+        }
+
+        if (products_[1] == 0)
+        {
+            return TGameConfig::kConveyorBufferSize;
+        }
+        return 0;
+    }
+
+    void ReceiveProduct(sf::Vector2i cellPosition, int number) override
+    {
         assert(number != 0);
-        assert(products_.back() == 0);
-        products_.back() = number;
+
+        if (IsMainCell(cellPosition))
+        {
+            products_[0] = number;
+        }
+        else
+        {
+            products_[1] = number;
+        }
     }
 
-    void UpdatePassOne(std::size_t i, std::size_t j, GameBoard<TGameConfig> &board) override
+    void UpdatePassOne(sf::Vector2i cellPosition, GameBoard<TGameConfig> &board) override
     {
-        std::size_t capacity = GetNeighborCapacity<TGameConfig, kOutDirection>(i, j, board);
+        if (!IsMainCell(cellPosition)) return;
 
-        if (capacity >= 3) 
+        if (products_[0] != 0 && products_[1] != 0)
         {
-            if (products_[0] != 0)
-            {
-                SendProduct<TGameConfig, kOutDirection>(i, j, board, products_[0]);
+            if (GetNeighborCapacity<TGameConfig, kOutDirection>(cellPosition, board) >= 3) {
+                SendProduct<TGameConfig, kOutDirection>(cellPosition, board, products_[0] + products_[1]);
                 products_[0] = 0;
+                products_[1] = 0;
             }
         }
+    }
 
-        if (capacity >= 2)
-        {
-            if (products_[0] == 0 && products_[1] != 0) 
-            {
-                std::swap(products_[0], products_[1]);
-            }
-        }
-
-        if (capacity >= 1)
-        {
-            if (products_[0] == 0 && products_[1] == 0 && products_[2] != 0)
-            {
-                std::swap(products_[1], products_[2]);
-            }
-        }
-    }   
-
-    void UpdatePassTwo(std::size_t i, std::size_t j, GameBoard<TGameConfig> &board) override
+    void UpdatePassTwo(sf::Vector2i cellPosition, GameBoard<TGameConfig> &board) override
     {
-        for (std::size_t k = 3; k < products_.size(); ++k)
-        {
-            if (products_[k] != 0 && products_[k - 1] == 0 && products_[k - 2] == 0 && products_[k - 3] == 0)
-            {
-                std::swap(products_[k], products_[k - 1]);
-            }
-        }
     }
 
     void RenderPassOne(
         GameRenderer<TGameConfig> &renderer,
-        sf::Vector2i position,
+        sf::Vector2i cellPosition,
         const IBackgroundCell<TGameConfig> &backgroundCell) const override
     {
         sf::Vector2f topLeft(
-            TGameConfig::kBoardLeft + position.x * TGameConfig::kCellSize,
-            TGameConfig::kBoardTop + position.y * TGameConfig::kCellSize);
+            TGameConfig::kBoardLeft + cellPosition.x * TGameConfig::kCellSize,
+            TGameConfig::kBoardTop + cellPosition.y * TGameConfig::kCellSize);
 
         renderer.DrawBorder(topLeft);
 
         sf::Vector2f center = topLeft + sf::Vector2f(TGameConfig::kCellSize / 2, TGameConfig::kCellSize / 2);
 
-        renderer.DrawRectangle(center, kOutDirection);
-
-        renderer.DrawArrow(center, kOutDirection);
+        if (IsMainCell(cellPosition))
+        {
+            renderer.DrawRectangle(
+                center, kOutDirection, 
+                products_[0] != 0 ? sf::Color::Yellow : sf::Color(200, 200, 200));
+            renderer.DrawArrow(center, kOutDirection);
+        }
+        else
+        {
+            renderer.DrawTriangle(
+                center, 
+                kOutDirection,
+                products_[1] != 0 ? sf::Color::Yellow : sf::Color(200, 200, 200));  
+        }
     }
 
     void RenderPassTwo(
         GameRenderer<TGameConfig> &renderer,
         sf::Vector2i cellPosition) const override
     {
-        const sf::Vector2f topLeft(
-            TGameConfig::kBoardLeft + cellPosition.x * TGameConfig::kCellSize,
-            TGameConfig::kBoardTop + cellPosition.y * TGameConfig::kCellSize);
-
-        for (std::size_t k = 0; k < products_.size(); ++k)
-        {
-            int product;
-            sf::Vector2f offset;
-            switch (kOutDirection) {
-                case Direction::kTop:
-                    product = products_[k];
-                    offset = sf::Vector2f(0, TGameConfig::kCellSize * (-1.0f + (float)(k + 1) / products_.size()));
-                    break;
-                case Direction::kRight:
-                    product = products_[products_.size() - 1 - k];
-                    offset = sf::Vector2f(TGameConfig::kCellSize * ((float)k / products_.size()), 0);
-                    break;
-                case Direction::kBottom:
-                    product = products_[products_.size() - 1 - k];
-                    offset = sf::Vector2f(0, TGameConfig::kCellSize * ((float)k / products_.size()));
-                    break;
-                case Direction::kLeft:
-                    product = products_[k];
-                    offset = sf::Vector2f(TGameConfig::kCellSize * (-1.0f + (float)(k + 1) / products_.size()), 0);
-                    break;
-            }
-
-            if (product != 0)
-            {
-                renderer.DrawCircle(
-                    topLeft + offset + sf::Vector2f(TGameConfig::kCellSize / 2, TGameConfig::kCellSize / 2),
-                    TGameConfig::kCellSize * 0.6,
-                    product % TGameConfig::kCommonDivisor == 0 ?
-                        sf::Color(30, 60, 30) :
-                        sf::Color(30, 30, 30) );
-
-                renderer.DrawText(
-                    std::to_string(product),
-                    TGameConfig::kCellSize * 0.7,
-                    sf::Color::White,
-                    topLeft + offset);
-            }
-        }
     }
+
 protected:
-    sf::Vector2i topLeftCellPosition_;
     std::array<int, 2> products_;
 };
-
 
 template <typename TGameConfig>
 class WallCell : public ForegroundCell<TGameConfig>
@@ -610,10 +602,10 @@ public:
     CollectionCenterCell(
         sf::Vector2i topLeftCellPosition,
         std::function<void()> onProductReceived,
-        std::function<int()> getScores) 
-            : ForegroundCell<TGameConfig>(topLeftCellPosition), 
-            onProductReceived_(onProductReceived),
-            getScores_(getScores)  {}
+        std::function<int()> getScores)
+        : ForegroundCell<TGameConfig>(topLeftCellPosition),
+          onProductReceived_(onProductReceived),
+          getScores_(getScores) {}
 
     std::size_t GetWidth() const override
     {
@@ -627,24 +619,24 @@ public:
     {
         return false;
     }
-    std::size_t GetCapacity() const override
+    std::size_t GetCapacity(sf::Vector2i cellPosition) const override
     {
         return TGameConfig::kConveyorBufferSize;
     }
-    void ReceiveProduct(int number) override
+    void ReceiveProduct(sf::Vector2i cellPosition, int number) override
     {
         assert(number != 0);
-        if (number % TGameConfig::kCommonDivisor == 0) 
+        if (number % TGameConfig::kCommonDivisor == 0)
         {
             onProductReceived_();
         }
     }
 
-    void UpdatePassOne(std::size_t i, std::size_t j, GameBoard<TGameConfig> &board) override
+    void UpdatePassOne(sf::Vector2i cellPosition, GameBoard<TGameConfig> &board) override
     {
     }
 
-    void UpdatePassTwo(std::size_t i, std::size_t j, GameBoard<TGameConfig> &board) override
+    void UpdatePassTwo(sf::Vector2i cellPosition, GameBoard<TGameConfig> &board) override
     {
     }
 
@@ -653,7 +645,8 @@ public:
         sf::Vector2i position,
         const IBackgroundCell<TGameConfig> &backgroundCell) const override
     {
-        if (position != ForegroundCell<TGameConfig>::topLeftCellPosition_) return;
+        if (position != ForegroundCell<TGameConfig>::topLeftCellPosition_)
+            return;
 
         sf::RectangleShape rectangle(
             sf::Vector2f(TGameConfig::kCellSize * GetWidth(), TGameConfig::kCellSize * GetHeight()));
@@ -666,8 +659,8 @@ public:
         sf::Vector2f scoreTextPosition =
             sf::Vector2f(TGameConfig::kBoardLeft, TGameConfig::kBoardTop) +
             sf::Vector2f(
-                (ForegroundCell<TGameConfig>::topLeftCellPosition_.x + GetWidth() / 2.0f - 0.5f) * TGameConfig::kCellSize, 
-                (ForegroundCell<TGameConfig>::topLeftCellPosition_.y + GetHeight() / 2.0f - 0.5f) * TGameConfig::kCellSize) + 
+                (ForegroundCell<TGameConfig>::topLeftCellPosition_.x + GetWidth() / 2.0f - 0.5f) * TGameConfig::kCellSize,
+                (ForegroundCell<TGameConfig>::topLeftCellPosition_.y + GetHeight() / 2.0f - 0.5f) * TGameConfig::kCellSize) +
             sf::Vector2f(0, -10);
 
         renderer.DrawText(
@@ -679,23 +672,25 @@ public:
         renderer.DrawText(
             "(" + std::to_string(TGameConfig::kCommonDivisor) + ")",
             16,
-            sf::Color(0, 255, 0 ),
+            sf::Color(0, 255, 0),
             scoreTextPosition + sf::Vector2f(0, 30));
     }
 
     void RenderPassTwo(GameRenderer<TGameConfig> &renderer, sf::Vector2i position) const override
     {
     }
+
 private:
     std::function<void()> onProductReceived_;
     std::function<int()> getScores_;
 };
 
 template <typename TGameConfig>
-class EmptyCell 
+class EmptyCell
 {
 public:
-    static void RenderPassOne(GameRenderer<TGameConfig> &renderer, sf::Vector2i position) {
+    static void RenderPassOne(GameRenderer<TGameConfig> &renderer, sf::Vector2i position)
+    {
         sf::Vector2f topLeft(
             TGameConfig::kBoardLeft + position.x * TGameConfig::kCellSize,
             TGameConfig::kBoardTop + position.y * TGameConfig::kCellSize);
@@ -716,11 +711,12 @@ public:
     {
         return background_;
     }
-    bool CanBuild() const {
-        return  (foreground_ == nullptr || foreground_->CanRemove()) &&
-                (background_ == nullptr || background_->CanBuild());
+    bool CanBuild() const
+    {
+        return foreground_ == nullptr &&
+               (background_ == nullptr || background_->CanBuild());
     }
-    
+
     void SetForegrund(const std::shared_ptr<ForegroundCell<TGameConfig>> &value)
     {
         foreground_ = value;
@@ -767,16 +763,16 @@ public:
     using ForegroundCellPointer = std::shared_ptr<ForegroundCell<TGameConfig>>;
     using BackgroundCellPointer = std::shared_ptr<IBackgroundCell<TGameConfig>>;
 
-    ForegroundCellPointer GetForeground(std::size_t i, std::size_t j) const
+    ForegroundCellPointer GetForeground(sf::Vector2i cellPosition) const
     {
-        return cellStacks_[i][j].GetForeground();
+        return cellStacks_[cellPosition.y][cellPosition.x].GetForeground();
     }
-    BackgroundCellPointer GetBackground(std::size_t i, std::size_t j) const
+    BackgroundCellPointer GetBackground(sf::Vector2i cellPosition) const
     {
-        return cellStacks_[i][j].GetBackground();
+        return cellStacks_[cellPosition.y][cellPosition.x].GetBackground();
     }
 
-    bool CanBuild(const std::shared_ptr<ForegroundCell<TGameConfig>>& cell)
+    bool CanBuild(const std::shared_ptr<ForegroundCell<TGameConfig>> &cell)
     {
         if (cell == nullptr)
         {
@@ -784,9 +780,9 @@ public:
         }
 
         sf::Vector2i cellPosition = cell->GetTopLeftCellPosition();
-        
-        if (cellPosition.x < 0 || cellPosition.x + cell->GetWidth() >= TGameConfig::kBoardWidth ||
-            cellPosition.y < 0 || cellPosition.y + cell->GetHeight() >= TGameConfig::kBoardHeight)
+
+        if (cellPosition.x < 0 || cellPosition.x + cell->GetWidth() > TGameConfig::kBoardWidth ||
+            cellPosition.y < 0 || cellPosition.y + cell->GetHeight() > TGameConfig::kBoardHeight)
         {
             return false;
         }
@@ -806,7 +802,8 @@ public:
 
     bool Build(std::shared_ptr<ForegroundCell<TGameConfig>> cell)
     {
-        if (!CanBuild(cell)) return false;
+        if (!CanBuild(cell))
+            return false;
 
         sf::Vector2i topLeftPosition = cell->GetTopLeftCellPosition();
 
@@ -820,7 +817,7 @@ public:
         return true;
     }
 
-    void Remove(sf::Vector2i cellPosition) 
+    void Remove(sf::Vector2i cellPosition)
     {
         auto foreground = cellStacks_[cellPosition.y][cellPosition.x].GetForeground();
 
@@ -829,7 +826,7 @@ public:
             if (foreground->CanRemove())
             {
                 auto topLeftCellPosition = foreground->GetTopLeftCellPosition();
-                
+
                 for (std::size_t i = 0; i < foreground->GetHeight(); ++i)
                 {
                     for (std::size_t j = 0; j < foreground->GetWidth(); ++j)
@@ -873,7 +870,7 @@ public:
                 auto foreground = cellStack.GetForeground();
                 if (foreground != nullptr)
                 {
-                    foreground->UpdatePassOne(i, j, *this);
+                    foreground->UpdatePassOne(sf::Vector2i(j, i), *this);
                 }
             }
         }
@@ -885,7 +882,7 @@ public:
                 auto foreground = cellStack.GetForeground();
                 if (foreground != nullptr)
                 {
-                    foreground->UpdatePassTwo(i, j, *this);
+                    foreground->UpdatePassTwo(sf::Vector2i(j, i), *this);
                 }
             }
         }
@@ -907,7 +904,6 @@ public:
                 cellStacks_[i][j].RenderPassTwo(renderer, sf::Vector2i(j, i));
             }
         }
-
 
         if (!IsMouseInsideBoard(renderer))
         {
@@ -1004,26 +1000,26 @@ public:
     {
         return true;
     }
-    std::size_t GetCapacity() const override
+    std::size_t GetCapacity(sf::Vector2i cellPosition) const override
     {
         return 0;
     }
-    void ReceiveProduct(int number) override
+    void ReceiveProduct(sf::Vector2i cellPosition, int number) override
     {
     }
     void UpdatePassOne(
-        std::size_t i, std::size_t j,
+        sf::Vector2i cellPosition,
         GameBoard<TGameConfig> &board) override
     {
         ++elapsedTime_;
         if (elapsedTime_ >= PRODUCTION_TIME)
         {
             auto numberCell =
-                dynamic_cast<const NumberCell<TGameConfig> *>(board.GetBackground(i, j).get());
+                dynamic_cast<const NumberCell<TGameConfig> *>(board.GetBackground(cellPosition).get());
 
-            if (numberCell)
+            if (numberCell && GetNeighborCapacity<TGameConfig, kDirection>(cellPosition, board) >= 3)
             {
-                SendProduct<TGameConfig, kDirection>(i, j, board, numberCell->GetNumber());
+                SendProduct<TGameConfig, kDirection>(cellPosition, board, numberCell->GetNumber());
             }
 
             elapsedTime_ = 0;
@@ -1031,7 +1027,7 @@ public:
     }
 
     void UpdatePassTwo(
-        std::size_t i, std::size_t j,
+        sf::Vector2i cellPosition,
         GameBoard<TGameConfig> &board) override
     {
     }
@@ -1043,7 +1039,7 @@ public:
     {
         sf::Vector2f topLeft(
             TGameConfig::kBoardLeft + position.x * TGameConfig::kCellSize,
-             TGameConfig::kBoardTop + position.y * TGameConfig::kCellSize);
+            TGameConfig::kBoardTop + position.y * TGameConfig::kCellSize);
 
         sf::RectangleShape rectangle(sf::Vector2f(TGameConfig::kCellSize, TGameConfig::kCellSize));
         rectangle.setFillColor(sf::Color(128, 0, 0));
@@ -1055,19 +1051,20 @@ public:
         if (numberCell)
         {
             Direction direction;
-            switch (kDirection) {
-                case Direction::kTop:
-                    direction = Direction::kRight;
-                    break;
-                case Direction::kRight:
-                    direction = Direction::kBottom;
-                    break;
-                case Direction::kBottom:
-                    direction = Direction::kLeft;
-                    break;
-               case Direction::kLeft:
-                    direction = Direction::kTop;
-                    break;
+            switch (kDirection)
+            {
+            case Direction::kTop:
+                direction = Direction::kRight;
+                break;
+            case Direction::kRight:
+                direction = Direction::kBottom;
+                break;
+            case Direction::kBottom:
+                direction = Direction::kLeft;
+                break;
+            case Direction::kLeft:
+                direction = Direction::kTop;
+                break;
             }
             renderer.DrawText(
                 std::to_string(numberCell->GetNumber()),
@@ -1087,19 +1084,19 @@ private:
 
 enum class PlayerAction
 {
-    BuildLeftOutMiningMachine,   
-    BuildTopOutMiningMachine,    
-    BuildRightOutMiningMachine, 
-    BuildBottomOutMiningMachine, 
-    BuildLeftToRightConveyor,  
-    BuildTopToBottomConveyor,    
-    BuildRightToLeftConveyor,    
-    BuildBottomToTopConveyor,  
+    BuildLeftOutMiningMachine,
+    BuildTopOutMiningMachine,
+    BuildRightOutMiningMachine,
+    BuildBottomOutMiningMachine,
+    BuildLeftToRightConveyor,
+    BuildTopToBottomConveyor,
+    BuildRightToLeftConveyor,
+    BuildBottomToTopConveyor,
     BuildTopOutCombiner,
     BuildRightOutCombiner,
     BuildBottomOutCombiner,
-    BuildLeftOutCombiner, 
-    Clear,                      
+    BuildLeftOutCombiner,
+    Clear,
 };
 
 template <typename TGameConfig>
@@ -1136,19 +1133,22 @@ public:
             }
         };
 
-        sf::Vector2i collectionCenterTopLeftCellPosition = 
+        sf::Vector2i collectionCenterTopLeftCellPosition =
             sf::Vector2i(CollectionCenterConfig::kLeft, CollectionCenterConfig::kTop);
 
-        auto collectionCenterCell = 
+        auto collectionCenterCell =
             std::make_shared<CollectionCenterCell<TGameConfig>>(
                 collectionCenterTopLeftCellPosition,
-                [&]() { AddScore(); },
-                [&]() { return scores_; });
+                [&]()
+                { AddScore(); },
+                [&]()
+                { return scores_; });
 
         board_.Build(collectionCenterCell);
     }
 
-    void AddScore() {
+    void AddScore()
+    {
         scores_++;
     }
 
@@ -1223,7 +1223,6 @@ private:
     int scores_;
 };
 
-
 class GameConfig
 {
 public:
@@ -1238,7 +1237,6 @@ public:
     static constexpr std::size_t kConveyorBufferSize = 10;
     static constexpr int kCommonDivisor = 2;
 };
-
 
 int main(int, char **)
 {
@@ -1300,6 +1298,18 @@ int main(int, char **)
                     break;
                 case sf::Keyboard::D:
                     playerAction = PlayerAction::BuildLeftToRightConveyor;
+                    break;
+                case sf::Keyboard::Num1:
+                    playerAction = PlayerAction::BuildTopOutCombiner;
+                    break;
+                case sf::Keyboard::Num2:
+                    playerAction = PlayerAction::BuildRightOutCombiner;
+                    break;
+                case sf::Keyboard::Num3:
+                    playerAction = PlayerAction::BuildBottomOutCombiner;
+                    break;
+                case sf::Keyboard::Num4:
+                    playerAction = PlayerAction::BuildLeftOutCombiner;
                     break;
                 default:
                     break;
