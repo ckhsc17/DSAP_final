@@ -1077,8 +1077,6 @@ public:
     {
         static_assert(TGameConfig::kBoardWidth % 2 == 0, "WIDTH must be even");
 
-        window->setFramerateLimit(TGameConfig::kFPS);
-
         BackgroundCellFactory<TGameConfig> backgroundCellFactory;
 
         // Setup Background
@@ -1086,14 +1084,13 @@ public:
         {
             for (std::size_t j = 0; j < TGameConfig::kBoardWidth; ++j)
             {
-                std::shared_ptr<IBackgroundCell<TGameConfig>> backgroundCell =
-                    backgroundCellFactory.Create();
+                auto backgroundCell = backgroundCellFactory.Create();
 
                 board_.SetBackground(i, j, backgroundCell);
             }
         };
 
-        sf::Vector2i collectionCenterTopLeftCellPosition =
+        auto collectionCenterTopLeftCellPosition =
             sf::Vector2i(CollectionCenterConfig::kLeft, CollectionCenterConfig::kTop);
 
         board_.template Build<CollectionCenterCell<TGameConfig>>(
@@ -1204,6 +1201,8 @@ int main(int, char **)
     sf::VideoMode mode = sf::VideoMode(1280, 1024);
 
     sf::RenderWindow window(mode, "DSAP Final Project", sf::Style::Close);
+
+    window.setFramerateLimit(GameConfig::kFPS);
 
     GameManager<GameConfig> gameManager(&window, &font);
 
