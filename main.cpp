@@ -161,13 +161,16 @@ public:
 };
 
 template <typename TGameConfig>
-class IForegroundCell : public ICell<TGameConfig>
+class ForegroundCell : public ICell<TGameConfig>
 {
 public:
-public:
+    ForegroundCell(sf::Vector2i topLeftCellPosition) : topLeftCellPosition_(topLeftCellPosition) {}
+
     virtual std::size_t GetWidth() const { return 1; }
     
     virtual std::size_t GetHeight() const { return 1; }
+
+    virtual sf::Vector2i GetTopLeftCellPosition() const { return topLeftCellPosition_;}
 
     virtual bool CanRemove() const = 0;
 
@@ -187,6 +190,9 @@ public:
     virtual void RenderPassTwo(
         GameRenderer<TGameConfig> &renderer,
         sf::Vector2i cellPosition) const = 0;
+
+protected:
+    sf::Vector2i topLeftCellPosition_;
 };
 
 struct TransferedProduct
@@ -291,9 +297,11 @@ std::size_t GetNeighborCapacity(std::size_t i, std::size_t j, GameBoard<TGameCon
 }
 
 template <typename TGameConfig, Direction kOutDirection>
-class ConveyorCell : public IForegroundCell<TGameConfig>
+class ConveyorCell : public ForegroundCell<TGameConfig>
 {
 public:
+    ConveyorCell(sf::Vector2i topLeftCellPosition) : ForegroundCell<TGameConfig>(topLeftCellPosition), products_{} {}
+
     bool CanRemove() const override
     {
         return true;
@@ -429,8 +437,152 @@ protected:
     std::array<int, TGameConfig::kConveyorBufferSize> products_;
 };
 
+
+template <typename TGameConfig, Direction kOutDirection>
+class CombinerCell : public ForegroundCell<TGameConfig>
+{
+public:
+    CombinerCell(sf::Vector2i topLeftCellPosition) : ForegroundCell<TGameConfig>(topLeftCellPosition) {}
+
+    bool CanRemove() const override
+    {
+        return true;
+    }
+
+    std::size_t GetCapacity() const override
+    {
+        for (std::size_t i = 0; i < products_.size(); ++i)
+        {
+            if (products_[products_.size() - 1 - i] != 0)
+            {
+                return i;
+            }
+        }
+        return products_.size();
+    }
+
+    void ReceiveProduct(int number) override
+    {       
+        assert(number != 0);
+        assert(products_.back() == 0);
+        products_.back() = number;
+    }
+
+    void UpdatePassOne(std::size_t i, std::size_t j, GameBoard<TGameConfig> &board) override
+    {
+        std::size_t capacity = GetNeighborCapacity<TGameConfig, kOutDirection>(i, j, board);
+
+        if (capacity >= 3) 
+        {
+            if (products_[0] != 0)
+            {
+                SendProduct<TGameConfig, kOutDirection>(i, j, board, products_[0]);
+                products_[0] = 0;
+            }
+        }
+
+        if (capacity >= 2)
+        {
+            if (products_[0] == 0 && products_[1] != 0) 
+            {
+                std::swap(products_[0], products_[1]);
+            }
+        }
+
+        if (capacity >= 1)
+        {
+            if (products_[0] == 0 && products_[1] == 0 && products_[2] != 0)
+            {
+                std::swap(products_[1], products_[2]);
+            }
+        }
+    }   
+
+    void UpdatePassTwo(std::size_t i, std::size_t j, GameBoard<TGameConfig> &board) override
+    {
+        for (std::size_t k = 3; k < products_.size(); ++k)
+        {
+            if (products_[k] != 0 && products_[k - 1] == 0 && products_[k - 2] == 0 && products_[k - 3] == 0)
+            {
+                std::swap(products_[k], products_[k - 1]);
+            }
+        }
+    }
+
+    void RenderPassOne(
+        GameRenderer<TGameConfig> &renderer,
+        sf::Vector2i position,
+        const IBackgroundCell<TGameConfig> &backgroundCell) const override
+    {
+        sf::Vector2f topLeft(
+            TGameConfig::kBoardLeft + position.x * TGameConfig::kCellSize,
+            TGameConfig::kBoardTop + position.y * TGameConfig::kCellSize);
+
+        renderer.DrawBorder(topLeft);
+
+        sf::Vector2f center = topLeft + sf::Vector2f(TGameConfig::kCellSize / 2, TGameConfig::kCellSize / 2);
+
+        renderer.DrawRectangle(center, kOutDirection);
+
+        renderer.DrawArrow(center, kOutDirection);
+    }
+
+    void RenderPassTwo(
+        GameRenderer<TGameConfig> &renderer,
+        sf::Vector2i cellPosition) const override
+    {
+        const sf::Vector2f topLeft(
+            TGameConfig::kBoardLeft + cellPosition.x * TGameConfig::kCellSize,
+            TGameConfig::kBoardTop + cellPosition.y * TGameConfig::kCellSize);
+
+        for (std::size_t k = 0; k < products_.size(); ++k)
+        {
+            int product;
+            sf::Vector2f offset;
+            switch (kOutDirection) {
+                case Direction::kTop:
+                    product = products_[k];
+                    offset = sf::Vector2f(0, TGameConfig::kCellSize * (-1.0f + (float)(k + 1) / products_.size()));
+                    break;
+                case Direction::kRight:
+                    product = products_[products_.size() - 1 - k];
+                    offset = sf::Vector2f(TGameConfig::kCellSize * ((float)k / products_.size()), 0);
+                    break;
+                case Direction::kBottom:
+                    product = products_[products_.size() - 1 - k];
+                    offset = sf::Vector2f(0, TGameConfig::kCellSize * ((float)k / products_.size()));
+                    break;
+                case Direction::kLeft:
+                    product = products_[k];
+                    offset = sf::Vector2f(TGameConfig::kCellSize * (-1.0f + (float)(k + 1) / products_.size()), 0);
+                    break;
+            }
+
+            if (product != 0)
+            {
+                renderer.DrawCircle(
+                    topLeft + offset + sf::Vector2f(TGameConfig::kCellSize / 2, TGameConfig::kCellSize / 2),
+                    TGameConfig::kCellSize * 0.6,
+                    product % TGameConfig::kCommonDivisor == 0 ?
+                        sf::Color(30, 60, 30) :
+                        sf::Color(30, 30, 30) );
+
+                renderer.DrawText(
+                    std::to_string(product),
+                    TGameConfig::kCellSize * 0.7,
+                    sf::Color::White,
+                    topLeft + offset);
+            }
+        }
+    }
+protected:
+    sf::Vector2i topLeftCellPosition_;
+    std::array<int, 2> products_;
+};
+
+
 template <typename TGameConfig>
-class WallCell : public IForegroundCell<TGameConfig>
+class WallCell : public ForegroundCell<TGameConfig>
 {
 public:
     bool CanRemove() const override
@@ -452,14 +604,14 @@ public:
 };
 
 template <typename TGameConfig>
-class CollectionCenterCell : public IForegroundCell<TGameConfig>
+class CollectionCenterCell : public ForegroundCell<TGameConfig>
 {
 public:
     CollectionCenterCell(
         sf::Vector2i topLeftCellPosition,
         std::function<void()> onProductReceived,
         std::function<int()> getScores) 
-            : topLeftCellPosition_(topLeftCellPosition), 
+            : ForegroundCell<TGameConfig>(topLeftCellPosition), 
             onProductReceived_(onProductReceived),
             getScores_(getScores)  {}
 
@@ -501,11 +653,11 @@ public:
         sf::Vector2i position,
         const IBackgroundCell<TGameConfig> &backgroundCell) const override
     {
-        if (position != topLeftCellPosition_) return;
+        if (position != ForegroundCell<TGameConfig>::topLeftCellPosition_) return;
 
         sf::RectangleShape rectangle(
             sf::Vector2f(TGameConfig::kCellSize * GetWidth(), TGameConfig::kCellSize * GetHeight()));
-        rectangle.setFillColor(sf::Color(150, 150, 150));
+        rectangle.setFillColor(sf::Color(0, 0, 180));
         rectangle.setPosition(sf::Vector2f(
             TGameConfig::kBoardLeft + position.x * TGameConfig::kCellSize,
             TGameConfig::kBoardTop + position.y * TGameConfig::kCellSize));
@@ -514,8 +666,8 @@ public:
         sf::Vector2f scoreTextPosition =
             sf::Vector2f(TGameConfig::kBoardLeft, TGameConfig::kBoardTop) +
             sf::Vector2f(
-                (topLeftCellPosition_.x + GetWidth() / 2.0f - 0.5f) * TGameConfig::kCellSize, 
-                (topLeftCellPosition_.y + GetHeight() / 2.0f - 0.5f) * TGameConfig::kCellSize) + 
+                (ForegroundCell<TGameConfig>::topLeftCellPosition_.x + GetWidth() / 2.0f - 0.5f) * TGameConfig::kCellSize, 
+                (ForegroundCell<TGameConfig>::topLeftCellPosition_.y + GetHeight() / 2.0f - 0.5f) * TGameConfig::kCellSize) + 
             sf::Vector2f(0, -10);
 
         renderer.DrawText(
@@ -527,7 +679,7 @@ public:
         renderer.DrawText(
             "(" + std::to_string(TGameConfig::kCommonDivisor) + ")",
             16,
-            sf::Color(30, 100, 30),
+            sf::Color(0, 255, 0 ),
             scoreTextPosition + sf::Vector2f(0, 30));
     }
 
@@ -535,7 +687,6 @@ public:
     {
     }
 private:
-    sf::Vector2i topLeftCellPosition_;
     std::function<void()> onProductReceived_;
     std::function<int()> getScores_;
 };
@@ -557,7 +708,7 @@ template <typename TGameConfig>
 class CellStack : public ICell<TGameConfig>
 {
 public:
-    std::shared_ptr<IForegroundCell<TGameConfig>> GetForeground() const
+    std::shared_ptr<ForegroundCell<TGameConfig>> GetForeground() const
     {
         return foreground_;
     }
@@ -570,7 +721,7 @@ public:
                 (background_ == nullptr || background_->CanBuild());
     }
     
-    void SetForegrund(const std::shared_ptr<IForegroundCell<TGameConfig>> &value)
+    void SetForegrund(const std::shared_ptr<ForegroundCell<TGameConfig>> &value)
     {
         foreground_ = value;
     }
@@ -604,7 +755,7 @@ public:
     }
 
 private:
-    std::shared_ptr<IForegroundCell<TGameConfig>> foreground_;
+    std::shared_ptr<ForegroundCell<TGameConfig>> foreground_;
     std::shared_ptr<IBackgroundCell<TGameConfig>> background_;
 };
 
@@ -613,7 +764,7 @@ class GameBoard
 {
 public:
     using Renderer = GameRenderer<TGameConfig>;
-    using ForegroundCellPointer = std::shared_ptr<IForegroundCell<TGameConfig>>;
+    using ForegroundCellPointer = std::shared_ptr<ForegroundCell<TGameConfig>>;
     using BackgroundCellPointer = std::shared_ptr<IBackgroundCell<TGameConfig>>;
 
     ForegroundCellPointer GetForeground(std::size_t i, std::size_t j) const
@@ -625,13 +776,15 @@ public:
         return cellStacks_[i][j].GetBackground();
     }
 
-    bool CanBuild(sf::Vector2i cellPosition, const std::shared_ptr<IForegroundCell<TGameConfig>>& cell)
+    bool CanBuild(const std::shared_ptr<ForegroundCell<TGameConfig>>& cell)
     {
         if (cell == nullptr)
         {
             return false;
         }
 
+        sf::Vector2i cellPosition = cell->GetTopLeftCellPosition();
+        
         if (cellPosition.x < 0 || cellPosition.x + cell->GetWidth() >= TGameConfig::kBoardWidth ||
             cellPosition.y < 0 || cellPosition.y + cell->GetHeight() >= TGameConfig::kBoardHeight)
         {
@@ -651,16 +804,17 @@ public:
         return true;
     }
 
-    template <typename TCell>
-    bool Build(sf::Vector2i cellPosition, std::shared_ptr<TCell> cell)
+    bool Build(std::shared_ptr<ForegroundCell<TGameConfig>> cell)
     {
-        if (!CanBuild(cellPosition, cell)) return false;
+        if (!CanBuild(cell)) return false;
+
+        sf::Vector2i topLeftPosition = cell->GetTopLeftCellPosition();
 
         for (std::size_t i = 0; i < cell->GetHeight(); ++i)
         {
             for (std::size_t j = 0; j < cell->GetWidth(); ++j)
             {
-                cellStacks_[cellPosition.y + i][cellPosition.x + j].SetForegrund(cell);
+                cellStacks_[topLeftPosition.y + i][topLeftPosition.x + j].SetForegrund(cell);
             }
         }
         return true;
@@ -668,7 +822,23 @@ public:
 
     void Remove(sf::Vector2i cellPosition) 
     {
-        cellStacks_[cellPosition.y][cellPosition.x].SetForegrund(nullptr);
+        auto foreground = cellStacks_[cellPosition.y][cellPosition.x].GetForeground();
+
+        if (foreground != nullptr)
+        {
+            if (foreground->CanRemove())
+            {
+                auto topLeftCellPosition = foreground->GetTopLeftCellPosition();
+                
+                for (std::size_t i = 0; i < foreground->GetHeight(); ++i)
+                {
+                    for (std::size_t j = 0; j < foreground->GetWidth(); ++j)
+                    {
+                        cellStacks_[topLeftCellPosition.y + i][topLeftCellPosition.x + j].SetForegrund(nullptr);
+                    }
+                }
+            }
+        }
     }
 
     void SetBackground(std::size_t i, std::size_t j, BackgroundCellPointer value)
@@ -825,9 +995,11 @@ template <
     Direction kDirection,
     std::size_t PRODUCTION_TIME = 100>
 
-class MiningMachineCell : public IForegroundCell<TGameConfig>
+class MiningMachineCell : public ForegroundCell<TGameConfig>
 {
 public:
+    MiningMachineCell(sf::Vector2i topLeftCellPosition) : ForegroundCell<TGameConfig>(topLeftCellPosition), elapsedTime_(0) {}
+
     bool CanRemove() const override
     {
         return true;
@@ -935,7 +1107,7 @@ class GameManager
 {
 public:
     using Renderer = GameRenderer<TGameConfig>;
-    using ForegroundCellPointer = std::shared_ptr<IForegroundCell<TGameConfig>>;
+    using ForegroundCellPointer = std::shared_ptr<ForegroundCell<TGameConfig>>;
     using BackgroundCellPointer = std::shared_ptr<IBackgroundCell<TGameConfig>>;
 
     struct CollectionCenterConfig
@@ -973,7 +1145,7 @@ public:
                 [&]() { AddScore(); },
                 [&]() { return scores_; });
 
-        board_.Build(collectionCenterTopLeftCellPosition, collectionCenterCell);
+        board_.Build(collectionCenterCell);
     }
 
     void AddScore() {
@@ -992,36 +1164,40 @@ public:
         switch (playerAction)
         {
         case PlayerAction::BuildLeftOutMiningMachine:
-            board_.Build(mouseCellPosition, std::make_shared<MiningMachineCell<TGameConfig, Direction::kLeft>>());
+            board_.Build(std::make_shared<MiningMachineCell<TGameConfig, Direction::kLeft>>(mouseCellPosition));
             break;
         case PlayerAction::BuildTopOutMiningMachine:
-            board_.Build(mouseCellPosition, std::make_shared<MiningMachineCell<TGameConfig, Direction::kTop>>());
+            board_.Build(std::make_shared<MiningMachineCell<TGameConfig, Direction::kTop>>(mouseCellPosition));
             break;
         case PlayerAction::BuildRightOutMiningMachine:
-            board_.Build(mouseCellPosition, std::make_shared<MiningMachineCell<TGameConfig, Direction::kRight>>());
+            board_.Build(std::make_shared<MiningMachineCell<TGameConfig, Direction::kRight>>(mouseCellPosition));
             break;
         case PlayerAction::BuildBottomOutMiningMachine:
-            board_.Build(mouseCellPosition, std::make_shared<MiningMachineCell<TGameConfig, Direction::kBottom>>());
+            board_.Build(std::make_shared<MiningMachineCell<TGameConfig, Direction::kBottom>>(mouseCellPosition));
             break;
         case PlayerAction::BuildLeftToRightConveyor:
-            board_.Build(mouseCellPosition, std::make_shared<ConveyorCell<TGameConfig, Direction::kRight>>());
+            board_.Build(std::make_shared<ConveyorCell<TGameConfig, Direction::kRight>>(mouseCellPosition));
             break;
         case PlayerAction::BuildTopToBottomConveyor:
-            board_.Build(mouseCellPosition, std::make_shared<ConveyorCell<TGameConfig, Direction::kBottom>>());
+            board_.Build(std::make_shared<ConveyorCell<TGameConfig, Direction::kBottom>>(mouseCellPosition));
             break;
         case PlayerAction::BuildRightToLeftConveyor:
-            board_.Build(mouseCellPosition, std::make_shared<ConveyorCell<TGameConfig, Direction::kLeft>>());
+            board_.Build(std::make_shared<ConveyorCell<TGameConfig, Direction::kLeft>>(mouseCellPosition));
             break;
         case PlayerAction::BuildBottomToTopConveyor:
-            board_.Build(mouseCellPosition, std::make_shared<ConveyorCell<TGameConfig, Direction::kTop>>());
+            board_.Build(std::make_shared<ConveyorCell<TGameConfig, Direction::kTop>>(mouseCellPosition));
             break;
         case PlayerAction::BuildTopOutCombiner:
+            board_.Build(std::make_shared<CombinerCell<TGameConfig, Direction::kTop>>(mouseCellPosition));
             break;
         case PlayerAction::BuildRightOutCombiner:
+            board_.Build(std::make_shared<CombinerCell<TGameConfig, Direction::kRight>>(mouseCellPosition));
             break;
         case PlayerAction::BuildBottomOutCombiner:
+            board_.Build(std::make_shared<CombinerCell<TGameConfig, Direction::kBottom>>(mouseCellPosition));
             break;
         case PlayerAction::BuildLeftOutCombiner:
+            board_.Build(std::make_shared<CombinerCell<TGameConfig, Direction::kLeft>>(mouseCellPosition));
             break;
         case PlayerAction::Clear:
             board_.Remove(mouseCellPosition);
