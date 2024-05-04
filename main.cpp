@@ -459,7 +459,7 @@ public:
     }
     std::size_t GetCapacity() const override
     {
-        return 10;
+        return TGameConfig::kConveyorBufferSize;
     }
     void ReceiveProduct(int number) override
     {
