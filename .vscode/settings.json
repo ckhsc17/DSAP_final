@@ -54,6 +54,10 @@
         "iterator": "cpp",
         "memory_resource": "cpp",
         "deque": "cpp",
-        "queue": "cpp"
+        "queue": "cpp",
+        "cassert": "cpp",
+        "random": "cpp",
+        "functional": "cpp",
+        "memory": "cpp"
     }
 }
