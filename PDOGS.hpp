@@ -17,7 +17,7 @@ namespace Feis
         static constexpr std::size_t kGoalSize = 4;
         static constexpr std::size_t kConveyorBufferSize = 10;
         static constexpr std::size_t kNumberOfWalls = 100;
-        static constexpr std::size_t kEndTime = 10800;
+        static constexpr std::size_t kEndTime = 7200;
     };
 
     struct CellPosition
