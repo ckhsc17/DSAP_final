@@ -1,6 +1,6 @@
 #include "PDOGS.hpp"
 #include "Drawer.hpp"
-#include "CellStackRenderer.hpp"
+#include "LayeredCellRenderer.hpp"
 
 template <typename TGameRendererConfig>
 class GameRenderer 
@@ -20,7 +20,7 @@ public:
         {
             for (int col = 0; col < GameManagerConfig::kBoardWidth; ++col)
             {
-                cellStackRenderer_.RenderPassOne(gameManagerInfo, renderer_, {row, col});
+                layeredCellRenderer_.RenderPassOne(gameManagerInfo, renderer_, {row, col});
             }
         }
 
@@ -28,7 +28,7 @@ public:
         {
             for (int col = 0; col < GameManagerConfig::kBoardWidth; ++col)
             {
-                cellStackRenderer_.RenderPassTwo(gameManagerInfo, renderer_, {row, col});
+                layeredCellRenderer_.RenderPassTwo(gameManagerInfo, renderer_, {row, col});
             }
         }
 
@@ -36,7 +36,7 @@ public:
         {
             for (int col = 0; col < GameManagerConfig::kBoardWidth; ++col)
             {
-                cellStackRenderer_.RenderPassThree(gameManagerInfo, renderer_, {row, col});
+                layeredCellRenderer_.RenderPassThree(gameManagerInfo, renderer_, {row, col});
             }
         }
 
@@ -58,5 +58,5 @@ public:
 
 private:
     Drawer<TGameRendererConfig> renderer_;
-    CellStackRenderer<TGameRendererConfig> cellStackRenderer_;
+    LayeredCellRenderer<TGameRendererConfig> layeredCellRenderer_;
 };

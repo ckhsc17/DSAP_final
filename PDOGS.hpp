@@ -17,7 +17,7 @@ namespace Feis
         static constexpr std::size_t kGoalSize = 4;
         static constexpr std::size_t kConveyorBufferSize = 10;
         static constexpr std::size_t kNumberOfWalls = 100;
-        static constexpr std::size_t kEndTime = 7200;
+        static constexpr std::size_t kEndTime = 9000;
     };
 
     struct CellPosition
@@ -57,18 +57,19 @@ namespace Feis
 
     class GameBoard;
 
-    class CellStack;
+    class LayeredCell;
 
 
     class IGameInfo
     {
     public:
         virtual std::string GetLevelInfo() const = 0;
-        virtual const CellStack &GetCellStack(CellPosition cellPosition) const = 0;
+        virtual const LayeredCell &GetLayeredCell(CellPosition cellPosition) const = 0;
         virtual bool IsScoredProduct(int number) const = 0;
         virtual int GetScores() const = 0;
         virtual int GetEndTime() const = 0;
         virtual int GetElapsedTime() const = 0;
+        virtual bool IsGameOver() const = 0;
     };
 
     class IGameManager : public IGameInfo
@@ -406,7 +407,7 @@ namespace Feis
         IGameManager *gameManager_;
     };
 
-    class CellStack
+    class LayeredCell
     {
     public:
         std::shared_ptr<ForegroundCell> GetForeground() const
@@ -441,9 +442,9 @@ namespace Feis
     class GameBoard
     {
     public:
-        const CellStack &GetCellStack(CellPosition cellPosition) const
+        const LayeredCell &GetLayeredCell(CellPosition cellPosition) const
         {
-            return cellStacks_[cellPosition.row][cellPosition.col];
+            return layeredCells_[cellPosition.row][cellPosition.col];
         }
 
         bool CanBuild(const std::shared_ptr<ForegroundCell> &cell)
@@ -465,7 +466,7 @@ namespace Feis
             {
                 for (std::size_t j = 0; j < cell->GetWidth(); ++j)
                 {
-                    if (!cellStacks_[cellPosition.row + i][cellPosition.col + j].CanBuild())
+                    if (!layeredCells_[cellPosition.row + i][cellPosition.col + j].CanBuild())
                     {
                         return false;
                     }
@@ -487,7 +488,7 @@ namespace Feis
             {
                 for (std::size_t j = 0; j < cell->GetWidth(); ++j)
                 {
-                    cellStacks_[topLeft.row + i][topLeft.col + j].SetForegrund(cell);
+                    layeredCells_[topLeft.row + i][topLeft.col + j].SetForegrund(cell);
                 }
             }
             return true;
@@ -495,7 +496,7 @@ namespace Feis
 
         void Remove(CellPosition cellPosition)
         {
-            auto foreground = cellStacks_[cellPosition.row][cellPosition.col].GetForeground();
+            auto foreground = layeredCells_[cellPosition.row][cellPosition.col].GetForeground();
 
             if (foreground != nullptr)
             {
@@ -507,7 +508,7 @@ namespace Feis
                     {
                         for (std::size_t j = 0; j < foreground->GetWidth(); ++j)
                         {
-                            cellStacks_[topLeftCellPosition.row + i][topLeftCellPosition.col + j].SetForegrund(nullptr);
+                            layeredCells_[topLeftCellPosition.row + i][topLeftCellPosition.col + j].SetForegrund(nullptr);
                         }
                     }
                 }
@@ -516,7 +517,7 @@ namespace Feis
 
         void SetBackground(CellPosition cellPosition, std::shared_ptr<IBackgroundCell> value)
         {
-            cellStacks_[cellPosition.row][cellPosition.col].SetBackground(value);
+            layeredCells_[cellPosition.row][cellPosition.col].SetBackground(value);
         }
 
         void Update()
@@ -525,8 +526,8 @@ namespace Feis
             {
                 for (int col = 0; col < GameManagerConfig::kBoardWidth; ++col)
                 {
-                    auto &cellStack = cellStacks_[row][col];
-                    auto foreground = cellStack.GetForeground();
+                    auto &layeredCell = layeredCells_[row][col];
+                    auto foreground = layeredCell.GetForeground();
                     if (foreground != nullptr)
                     {
                         foreground->UpdatePassOne({row, col}, *this);
@@ -537,8 +538,8 @@ namespace Feis
             {
                 for (int col = 0; col < GameManagerConfig::kBoardWidth; ++col)
                 {
-                    auto &cellStack = cellStacks_[row][col];
-                    auto foreground = cellStack.GetForeground();
+                    auto &layeredCell = layeredCells_[row][col];
+                    auto foreground = layeredCell.GetForeground();
                     if (foreground != nullptr)
                     {
                         foreground->UpdatePassTwo({row, col}, *this);
@@ -548,7 +549,7 @@ namespace Feis
         }
 
     private:
-        std::array<std::array<CellStack, GameManagerConfig::kBoardWidth>, GameManagerConfig::kBoardHeight> cellStacks_;
+        std::array<std::array<LayeredCell, GameManagerConfig::kBoardWidth>, GameManagerConfig::kBoardHeight> layeredCells_;
     };
 
     bool IsWithinBoard(CellPosition cellPosition)
@@ -564,7 +565,7 @@ namespace Feis
         if (!IsWithinBoard(targetCellPosition))
             return;
 
-        auto foregroundCell = board.GetCellStack(targetCellPosition).GetForeground();
+        auto foregroundCell = board.GetLayeredCell(targetCellPosition).GetForeground();
 
         if (foregroundCell)
         {
@@ -579,7 +580,7 @@ namespace Feis
         if (!IsWithinBoard(neighborCellPosition))
             return 0;
 
-        auto foregroundCell = board.GetCellStack(neighborCellPosition).GetForeground();
+        auto foregroundCell = board.GetLayeredCell(neighborCellPosition).GetForeground();
 
         if (foregroundCell)
         {
@@ -667,7 +668,7 @@ namespace Feis
             if (elapsedTime_ >= 100)
             {
                 auto numberCell =
-                    dynamic_cast<const NumberCell *>(board.GetCellStack(cellPosition).GetBackground().get());
+                    dynamic_cast<const NumberCell *>(board.GetLayeredCell(cellPosition).GetBackground().get());
 
                 if (numberCell && GetNeighborCapacity(board, cellPosition, direction_) >= 3)
                 {
@@ -755,13 +756,17 @@ namespace Feis
                 CellPosition cellPosition;
                 cellPosition.row = disRow(gen);
                 cellPosition.col = disCol(gen);
-                if (board_.GetCellStack(cellPosition).GetForeground() == nullptr)
+                if (board_.GetLayeredCell(cellPosition).GetForeground() == nullptr)
                 {
                     board_.template Build<WallCell>(cellPosition);
                 }
             }
         }
 
+        bool IsGameOver() const override
+        {
+            return elapsedTime_ >= endTime_;
+        }
 
         int GetEndTime() const override { return endTime_; }
 
@@ -792,9 +797,9 @@ namespace Feis
             return scores_;
         }
 
-        const CellStack &GetCellStack(CellPosition cellPosition) const override
+        const LayeredCell &GetLayeredCell(CellPosition cellPosition) const override
         {
-            return board_.GetCellStack(cellPosition);
+            return board_.GetLayeredCell(cellPosition);
         }
 
         void AddScore()
@@ -870,4 +875,5 @@ namespace Feis
         int scores_;
     };
 }
+
 #endif

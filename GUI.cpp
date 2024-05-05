@@ -1,5 +1,5 @@
 #include "PDOGS.hpp"
-
+#include <fstream>
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
 
@@ -25,7 +25,7 @@ CellPosition GetMouseCellPosition(const sf::RenderWindow &window)
             relatedMousePosition.x / GameRendererConfig::kCellSize};
 }
 
-class GamePlayer : public IGamePlayer 
+class GamePlayerWithHistory : public IGamePlayer 
 {
 public:
     PlayerAction GetNextAction(const IGameInfo& info) override 
@@ -48,6 +48,18 @@ private:
     std::queue<PlayerAction> actions_;
 };
 
+void Save(std::queue<PlayerAction> playerActionHistory, const std::string &filename)
+{
+    std::ofstream outFile(filename);
+    while (!playerActionHistory.empty())
+    {
+        const PlayerAction &playerAction = playerActionHistory.front();
+        outFile << playerAction.cellPosition.row << " " << playerAction.cellPosition.col << " " << static_cast<int>(playerAction.type) << std::endl;
+        playerActionHistory.pop();
+    }
+}
+
+
 int main(int, char **)
 {
     sf::VideoMode mode = sf::VideoMode(1280, 1024);
@@ -56,7 +68,7 @@ int main(int, char **)
 
     window.setFramerateLimit(GameRendererConfig::kFPS);
 
-    GamePlayer player;
+    GamePlayerWithHistory player;
     
     GameManager gameManager(&player, 3, 20);
 
@@ -80,6 +92,8 @@ int main(int, char **)
 
     GameRenderer<GameRendererConfig> gameRenderer(&window);
 
+    std::queue<PlayerAction> playerActionHistory;
+
     while (window.isOpen())
     {
         sf::Event event;
@@ -93,7 +107,9 @@ int main(int, char **)
                 {
                     if (event.mouseButton.button == sf::Mouse::Left)
                     {
-                        player.EnqueueAction({playerActionType, mouseCellPosition});
+                        auto playerAction = PlayerAction{playerActionType, mouseCellPosition};
+                        player.EnqueueAction(playerAction);
+                        playerActionHistory.push(playerAction);
                     }
                 }
             }
@@ -103,6 +119,10 @@ int main(int, char **)
                 if (playerActionKeyboardMap.count(event.key.code))
                 {
                     playerActionType = playerActionKeyboardMap.at(event.key.code);
+                } 
+                else if (event.key.code == sf::Keyboard::F4)
+                {
+                    Save(playerActionHistory, "gameplay.txt");
                 }
             }
             if (event.type == sf::Event::Closed)

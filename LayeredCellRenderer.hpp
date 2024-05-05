@@ -1,12 +1,12 @@
-#ifndef CELL_STACK_RENDERER_HPP
-#define CELL_STACK_RENDERER_HPP
+#ifndef LAYERED_CELL_RENDERER_HPP
+#define LAYERED_CELL_RENDERER_HPP
 #include "Drawer.hpp"
 #include "CellRendererFirstPassVisitor.hpp"
 #include "CellRendererSecondPassVisitor.hpp"
 #include "CellRendererThirdPassVisitor.hpp"
 
 template<typename TGameRendererConfig>
-class CellStackRenderer
+class LayeredCellRenderer
 {
 public:
     using IGameInfo = Feis::IGameInfo;
@@ -17,10 +17,10 @@ public:
         Drawer<TGameRendererConfig> &renderer, 
         CellPosition position) const
     {
-        auto& cellStack = info.GetCellStack(position);
+        auto& layeredCell = info.GetLayeredCell(position);
 
-        auto foreground = cellStack.GetForeground();
-        auto background = cellStack.GetBackground();
+        auto foreground = layeredCell.GetForeground();
+        auto background = layeredCell.GetBackground();
 
         if (foreground)
         {
@@ -44,9 +44,9 @@ public:
         Drawer<TGameRendererConfig> &drawer,
         CellPosition cellPosition) const
     {
-        auto& cellStack = info.GetCellStack(cellPosition);
+        auto& layeredCell = info.GetLayeredCell(cellPosition);
 
-        auto foreground = cellStack.GetForeground();
+        auto foreground = layeredCell.GetForeground();
 
         if (foreground)
         {
@@ -60,9 +60,9 @@ public:
         Drawer<TGameRendererConfig> &drawer,
         CellPosition cellPosition) const
     {
-        auto& cellStack = info.GetCellStack(cellPosition);
+        auto& layeredCell = info.GetLayeredCell(cellPosition);
 
-        auto foreground = cellStack.GetForeground();
+        auto foreground = layeredCell.GetForeground();
         if (foreground)
         {
             CellRendererThirdPassVisitor<TGameRendererConfig> cellRenderer(&info, &drawer, cellPosition);
