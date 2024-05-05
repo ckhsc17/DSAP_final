@@ -753,7 +753,7 @@ namespace Feis
 
         bool IsScoredProduct(int number) const override
         {
-            return number % 2 == 0;
+            return number % commonDividor_ == 0;
         }
 
         void OnProductReceived(int number) override
