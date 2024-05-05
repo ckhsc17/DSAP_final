@@ -7,8 +7,22 @@ public:
     using CellPosition = Feis::CellPosition;
     using Direction = Feis::Direction;
 
-    Drawer(sf::RenderWindow *window, sf::Font *font) : window_(window), font_{font}
+    Drawer(sf::RenderWindow *window) : window_(window)
     {
+        if (!font_.loadFromFile("arial.ttf"))
+        {
+            std::cout << "Error loading font" << std::endl;
+        }
+    }
+
+    void Clear()
+    {
+        window_->clear(sf::Color::Black);
+    }
+
+    void Display()
+    {
+        window_->display();
     }
 
     void DrawBorder(CellPosition cellPosition)
@@ -37,7 +51,7 @@ public:
         Direction direction = Direction::kTop)
     {
         sf::Text text;
-        text.setFont(*font_);
+        text.setFont(font_);
         text.setString(str);
         text.setCharacterSize(characterSize);
         text.setFillColor(color);
@@ -79,13 +93,13 @@ public:
         triangle.setPoint(1, sf::Vector2f(TGameRendererConfig::kCellSize, 0));
         triangle.setPoint(2, sf::Vector2f(TGameRendererConfig::kCellSize, TGameRendererConfig::kCellSize));
         triangle.setOrigin(triangle.getLocalBounds().width / 2, triangle.getLocalBounds().height / 2);
-        triangle.rotate((static_cast<int>(direction)+1) * 90);
+        triangle.rotate((static_cast<int>(direction) + 1) * 90);
         triangle.setFillColor(color);
         triangle.setPosition(center);
         DrawShape(triangle);
     }
 
-     void DrawTriangle(CellPosition cellPosition, Direction direction, sf::Color color)
+    void DrawTriangle(CellPosition cellPosition, Direction direction, sf::Color color)
     {
         DrawTriangle(GetCellCenter(cellPosition), direction, color);
     }
@@ -138,6 +152,6 @@ public:
 
 private:
     sf::RenderWindow *window_;
-    sf::Font *font_;
+    sf::Font font_;
 };
 #endif

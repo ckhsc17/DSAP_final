@@ -429,6 +429,7 @@ namespace Feis
         std::shared_ptr<IBackgroundCell> background_;
     };
 
+
     class GameBoard
     {
     public:
@@ -683,8 +684,9 @@ namespace Feis
         std::size_t elapsedTime_;
     };
 
-    enum class PlayerAction
+    enum class PlayerActionType
     {
+        None,
         BuildLeftOutMiningMachine,
         BuildTopOutMiningMachine,
         BuildRightOutMiningMachine,
@@ -700,6 +702,18 @@ namespace Feis
         Clear,
     };
 
+    struct PlayerAction
+    {
+        PlayerActionType type;
+        CellPosition cellPosition;
+    };
+
+    class IGamePlayer
+    {
+    public:
+        virtual PlayerAction GetNextAction() = 0;
+    };
+
     class GameManager : public IGameManager
     {
     public:
@@ -709,7 +723,11 @@ namespace Feis
             static constexpr int kTop = GameManagerConfig::kBoardHeight / 2 - GameManagerConfig::kGoalSize / 2;
         };
 
-        GameManager(int commonDividor, unsigned int seed) : board_(), scores_{}, commonDividor_{commonDividor}
+        GameManager(
+            IGamePlayer* player,
+            int commonDividor, 
+            unsigned int seed) 
+            : time_{}, player_(player), board_(), scores_{}, commonDividor_{commonDividor}
         {
             static_assert(GameManagerConfig::kBoardWidth % 2 == 0, "WIDTH must be even");
 
@@ -776,58 +794,66 @@ namespace Feis
             scores_++;
         }
 
-        void DoAction(PlayerAction playerAction, CellPosition cellPosition)
-        {
-            switch (playerAction)
-            {
-            case PlayerAction::BuildLeftOutMiningMachine:
-                board_.template Build<MiningMachineCell>(cellPosition, Direction::kLeft);
-                break;
-            case PlayerAction::BuildTopOutMiningMachine:
-                board_.template Build<MiningMachineCell>(cellPosition, Direction::kTop);
-                break;
-            case PlayerAction::BuildRightOutMiningMachine:
-                board_.template Build<MiningMachineCell>(cellPosition, Direction::kRight);
-                break;
-            case PlayerAction::BuildBottomOutMiningMachine:
-                board_.template Build<MiningMachineCell>(cellPosition, Direction::kBottom);
-                break;
-            case PlayerAction::BuildLeftToRightConveyor:
-                board_.template Build<ConveyorCell>(cellPosition, Direction::kRight);
-                break;
-            case PlayerAction::BuildTopToBottomConveyor:
-                board_.template Build<ConveyorCell>(cellPosition, Direction::kBottom);
-                break;
-            case PlayerAction::BuildRightToLeftConveyor:
-                board_.template Build<ConveyorCell>(cellPosition, Direction::kLeft);
-                break;
-            case PlayerAction::BuildBottomToTopConveyor:
-                board_.template Build<ConveyorCell>(cellPosition, Direction::kTop);
-                break;
-            case PlayerAction::BuildTopOutCombiner:
-                board_.template Build<CombinerCell>(cellPosition, Direction::kTop);
-                break;
-            case PlayerAction::BuildRightOutCombiner:
-                board_.template Build<CombinerCell>(cellPosition, Direction::kRight);
-                break;
-            case PlayerAction::BuildBottomOutCombiner:
-                board_.template Build<CombinerCell>(cellPosition, Direction::kBottom);
-                break;
-            case PlayerAction::BuildLeftOutCombiner:
-                board_.template Build<CombinerCell>(cellPosition, Direction::kLeft);
-                break;
-            case PlayerAction::Clear:
-                board_.Remove(cellPosition);
-                break;
-            }
-        }
-
         void Update()
         {
+            ++time_;
+            
+            if (time_ % 3 == 0) 
+            {
+                PlayerAction playerAction = player_->GetNextAction();
+
+                switch (playerAction.type)
+                {
+                case PlayerActionType::None:
+                    break;
+                case PlayerActionType::BuildLeftOutMiningMachine:
+                    board_.template Build<MiningMachineCell>(playerAction.cellPosition, Direction::kLeft);
+                    break;
+                case PlayerActionType::BuildTopOutMiningMachine:
+                    board_.template Build<MiningMachineCell>(playerAction.cellPosition, Direction::kTop);
+                    break;
+                case PlayerActionType::BuildRightOutMiningMachine:
+                    board_.template Build<MiningMachineCell>(playerAction.cellPosition, Direction::kRight);
+                    break;
+                case PlayerActionType::BuildBottomOutMiningMachine:
+                    board_.template Build<MiningMachineCell>(playerAction.cellPosition, Direction::kBottom);
+                    break;
+                case PlayerActionType::BuildLeftToRightConveyor:
+                    board_.template Build<ConveyorCell>(playerAction.cellPosition, Direction::kRight);
+                    break;
+                case PlayerActionType::BuildTopToBottomConveyor:
+                    board_.template Build<ConveyorCell>(playerAction.cellPosition, Direction::kBottom);
+                    break;
+                case PlayerActionType::BuildRightToLeftConveyor:
+                    board_.template Build<ConveyorCell>(playerAction.cellPosition, Direction::kLeft);
+                    break;
+                case PlayerActionType::BuildBottomToTopConveyor:
+                    board_.template Build<ConveyorCell>(playerAction.cellPosition, Direction::kTop);
+                    break;
+                case PlayerActionType::BuildTopOutCombiner:
+                    board_.template Build<CombinerCell>(playerAction.cellPosition, Direction::kTop);
+                    break;
+                case PlayerActionType::BuildRightOutCombiner:
+                    board_.template Build<CombinerCell>(playerAction.cellPosition, Direction::kRight);
+                    break;
+                case PlayerActionType::BuildBottomOutCombiner:
+                    board_.template Build<CombinerCell>(playerAction.cellPosition, Direction::kBottom);
+                    break;
+                case PlayerActionType::BuildLeftOutCombiner:
+                    board_.template Build<CombinerCell>(playerAction.cellPosition, Direction::kLeft);
+                    break;
+                case PlayerActionType::Clear:
+                    board_.Remove(playerAction.cellPosition);
+                    break;
+                }
+            }
+
             board_.Update();
         }
 
     private:
+        std::size_t time_;
+        IGamePlayer* player_;
         GameBoard board_;
         int commonDividor_;
         int scores_;

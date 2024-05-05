@@ -28,6 +28,29 @@ CellPosition GetMouseCellPosition(const sf::RenderWindow &window)
             relatedMousePosition.x / GameRendererConfig::kCellSize};
 }
 
+class GamePlayer : public IGamePlayer 
+{
+public:
+    PlayerAction GetNextAction() override 
+    {
+        if (actions_.empty())
+        {
+            return {PlayerActionType::None, {0, 0}};
+        }
+
+        PlayerAction action = actions_.front();
+        actions_.pop();
+        return action;
+    }
+
+    void EnqueueAction(PlayerAction action)
+    {
+        actions_.push(action);
+    }
+private:
+    std::queue<PlayerAction> actions_;
+};
+
 int main(int, char **)
 {
     sf::VideoMode mode = sf::VideoMode(1280, 1024);
@@ -36,25 +59,27 @@ int main(int, char **)
 
     window.setFramerateLimit(GameConfig::kFPS);
 
-    GameManager gameManager(3, 20);
+    GamePlayer player;
+    
+    GameManager gameManager(&player, 3, 20);
 
-    const std::map<sf::Keyboard::Key, PlayerAction> playerActionKeyboardMap = {
-        {sf::Keyboard::J, PlayerAction::BuildLeftOutMiningMachine},
-        {sf::Keyboard::I, PlayerAction::BuildTopOutMiningMachine},
-        {sf::Keyboard::L, PlayerAction::BuildRightOutMiningMachine},
-        {sf::Keyboard::K, PlayerAction::BuildBottomOutMiningMachine},
-        {sf::Keyboard::D, PlayerAction::BuildLeftToRightConveyor},
-        {sf::Keyboard::S, PlayerAction::BuildTopToBottomConveyor},
-        {sf::Keyboard::A, PlayerAction::BuildRightToLeftConveyor},
-        {sf::Keyboard::W, PlayerAction::BuildBottomToTopConveyor},
-        {sf::Keyboard::Num1, PlayerAction::BuildTopOutCombiner},
-        {sf::Keyboard::Num2, PlayerAction::BuildRightOutCombiner},
-        {sf::Keyboard::Num3, PlayerAction::BuildBottomOutCombiner},
-        {sf::Keyboard::Num4, PlayerAction::BuildLeftOutCombiner},
-        {sf::Keyboard::Backspace, PlayerAction::Clear},
+    const std::map<sf::Keyboard::Key, PlayerActionType> playerActionKeyboardMap = {
+        {sf::Keyboard::J, PlayerActionType::BuildLeftOutMiningMachine},
+        {sf::Keyboard::I, PlayerActionType::BuildTopOutMiningMachine},
+        {sf::Keyboard::L, PlayerActionType::BuildRightOutMiningMachine},
+        {sf::Keyboard::K, PlayerActionType::BuildBottomOutMiningMachine},
+        {sf::Keyboard::D, PlayerActionType::BuildLeftToRightConveyor},
+        {sf::Keyboard::S, PlayerActionType::BuildTopToBottomConveyor},
+        {sf::Keyboard::A, PlayerActionType::BuildRightToLeftConveyor},
+        {sf::Keyboard::W, PlayerActionType::BuildBottomToTopConveyor},
+        {sf::Keyboard::Num1, PlayerActionType::BuildTopOutCombiner},
+        {sf::Keyboard::Num2, PlayerActionType::BuildRightOutCombiner},
+        {sf::Keyboard::Num3, PlayerActionType::BuildBottomOutCombiner},
+        {sf::Keyboard::Num4, PlayerActionType::BuildLeftOutCombiner},
+        {sf::Keyboard::Backspace, PlayerActionType::Clear},
     };
 
-    PlayerAction playerAction = PlayerAction::BuildLeftToRightConveyor;
+    PlayerActionType playerActionType = PlayerActionType::BuildLeftToRightConveyor;
 
     GameRenderer<GameRendererConfig> gameRenderer(&window);
 
@@ -71,7 +96,7 @@ int main(int, char **)
                 {
                     if (event.mouseButton.button == sf::Mouse::Left)
                     {
-                        gameManager.DoAction(playerAction, mouseCellPosition);
+                        player.EnqueueAction({playerActionType, mouseCellPosition});
                     }
                 }
             }
@@ -80,7 +105,7 @@ int main(int, char **)
             {
                 if (playerActionKeyboardMap.count(event.key.code))
                 {
-                    playerAction = playerActionKeyboardMap.at(event.key.code);
+                    playerActionType = playerActionKeyboardMap.at(event.key.code);
                 }
             }
             if (event.type == sf::Event::Closed)
