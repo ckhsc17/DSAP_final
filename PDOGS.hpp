@@ -17,6 +17,7 @@ namespace Feis
         static constexpr std::size_t kGoalSize = 4;
         static constexpr std::size_t kConveyorBufferSize = 10;
         static constexpr std::size_t kNumberOfWalls = 100;
+        static constexpr std::size_t kEndTime = 10800;
     };
 
     struct CellPosition
@@ -65,6 +66,8 @@ namespace Feis
         virtual const CellStack &GetCellStack(CellPosition cellPosition) const = 0;
         virtual bool IsScoredProduct(int number) const = 0;
         virtual int GetScores() const = 0;
+        virtual int GetEndTime() const = 0;
+        virtual int GetElapsedTime() const = 0;
 
         virtual void OnProductReceived(int number) = 0;
     };
@@ -727,7 +730,7 @@ namespace Feis
             IGamePlayer* player,
             int commonDividor, 
             unsigned int seed) 
-            : time_{}, player_(player), board_(), scores_{}, commonDividor_{commonDividor}
+            : elapsedTime_{}, endTime_{GameManagerConfig::kEndTime}, player_(player), board_(), scores_{}, commonDividor_{commonDividor}
         {
             static_assert(GameManagerConfig::kBoardWidth % 2 == 0, "WIDTH must be even");
 
@@ -764,6 +767,11 @@ namespace Feis
             }
         }
 
+
+        int GetEndTime() const override { return endTime_; }
+
+        int GetElapsedTime() const override { return elapsedTime_; }
+
         std::string GetLevelInfo() const override
         {
             return "(" + std::to_string(commonDividor_) + ")";
@@ -776,7 +784,12 @@ namespace Feis
 
         void OnProductReceived(int number) override
         {
-            AddScore();
+            assert(number != 0);
+
+            if (number % commonDividor_ == 0)
+            {
+                AddScore();
+            }
         }
 
         int GetScores() const override
@@ -796,9 +809,11 @@ namespace Feis
 
         void Update()
         {
-            ++time_;
+            if (elapsedTime_ >= endTime_) return;
+
+            ++elapsedTime_;
             
-            if (time_ % 3 == 0) 
+            if (elapsedTime_ % 3 == 0) 
             {
                 PlayerAction playerAction = player_->GetNextAction();
 
@@ -852,7 +867,8 @@ namespace Feis
         }
 
     private:
-        std::size_t time_;
+        std::size_t elapsedTime_;
+        std::size_t endTime_;
         IGamePlayer* player_;
         GameBoard board_;
         int commonDividor_;

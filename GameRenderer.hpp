@@ -40,6 +40,19 @@ public:
             }
         }
 
+        int timeLeft = gameManager.GetEndTime() - gameManager.GetElapsedTime();
+
+        renderer_.DrawText(
+            std::to_string(timeLeft / (TGameRendererConfig::kFPS * 60) / 10) +
+            std::to_string(timeLeft / (TGameRendererConfig::kFPS * 60) % 10) + 
+            ":" + 
+            std::to_string(timeLeft / (TGameRendererConfig::kFPS) % 60 / 10) +
+            std::to_string(timeLeft / (TGameRendererConfig::kFPS) % 10), 
+            20,
+            sf::Color::White,
+            sf::Vector2f(50, 30));
+
+
         renderer_.Display();
     }
 

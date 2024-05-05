@@ -7,12 +7,9 @@
 
 using namespace Feis;
 
-struct GameConfig {
-    static constexpr int kFPS = 30;
-};
-
 struct GameRendererConfig
 {
+    static constexpr int kFPS = 30;
     static constexpr int kCellSize = 20;
     static constexpr int kBoardLeft = 20;
     static constexpr int kBoardTop = 60;
@@ -57,7 +54,7 @@ int main(int, char **)
 
     sf::RenderWindow window(mode, "DSAP Final Project", sf::Style::Close);
 
-    window.setFramerateLimit(GameConfig::kFPS);
+    window.setFramerateLimit(GameRendererConfig::kFPS);
 
     GamePlayer player;
     
