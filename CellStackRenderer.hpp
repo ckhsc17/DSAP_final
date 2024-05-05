@@ -65,7 +65,7 @@ public:
         auto foreground = cellStack.GetForeground();
         if (foreground)
         {
-            CellRendererThirdPassVisitor<TGameRendererConfig> cellRenderer(&drawer, cellPosition);
+            CellRendererThirdPassVisitor<TGameRendererConfig> cellRenderer(&gameManager, &drawer, cellPosition);
             foreground->Accept(&cellRenderer);
         }
     }

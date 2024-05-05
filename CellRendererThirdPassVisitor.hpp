@@ -10,10 +10,40 @@ public:
     using CellPosition = Feis::CellPosition;
 
     CellRendererThirdPassVisitor(
+        const Feis::IGameManager* gameManager,
         Drawer<TGameRendererConfig> *drawer, 
         CellPosition cellPosition)
-        : drawer_(drawer), cellPosition_(cellPosition)
+        : gameManager_(gameManager), drawer_(drawer), cellPosition_(cellPosition)
     {
+    }
+    void Visit(const Feis::CollectionCenterCell *cell) const override
+    {
+       if (cellPosition_ != cell->GetTopLeftCellPosition())
+            return;
+
+        sf::RectangleShape rectangle(
+            sf::Vector2f(TGameRendererConfig::kCellSize * cell->GetWidth(), TGameRendererConfig::kCellSize * cell->GetHeight()));
+
+        rectangle.setFillColor(sf::Color(0, 0, 180));
+        rectangle.setPosition(drawer_->GetCellTopLeft(cellPosition_));
+        drawer_->DrawShape(rectangle);
+
+        sf::Vector2f scoreTextPosition =
+            drawer_->GetCellTopLeft(cell->GetTopLeftCellPosition()) +
+            sf::Vector2f(cell->GetWidth(), cell->GetHeight()) * 0.5f * static_cast<float>(TGameRendererConfig::kCellSize) +
+            sf::Vector2f(0, -10);
+
+        drawer_->DrawText(
+            std::to_string(cell->GetScores()),
+            20,
+            sf::Color::White,
+            scoreTextPosition);
+
+        drawer_->DrawText(
+            gameManager_->GetLevelInfo(),
+            16,
+            sf::Color(0, 255, 0),
+            scoreTextPosition + sf::Vector2f(0, 30));
     }
     void Visit(const Feis::CombinerCell *cell) const override
     {
@@ -40,6 +70,7 @@ public:
     }
 
 private:
+    const Feis::IGameManager *gameManager_;
     Drawer<TGameRendererConfig> * const drawer_;
     CellPosition cellPosition_;
 };
