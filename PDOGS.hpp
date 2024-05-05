@@ -59,7 +59,8 @@ namespace Feis
 
     class CellStack;
 
-    class IGameManager
+
+    class IGameInfo
     {
     public:
         virtual std::string GetLevelInfo() const = 0;
@@ -68,7 +69,11 @@ namespace Feis
         virtual int GetScores() const = 0;
         virtual int GetEndTime() const = 0;
         virtual int GetElapsedTime() const = 0;
+    };
 
+    class IGameManager : public IGameInfo
+    {
+    public:
         virtual void OnProductReceived(int number) = 0;
     };
 
@@ -441,16 +446,6 @@ namespace Feis
             return cellStacks_[cellPosition.row][cellPosition.col];
         }
 
-        std::shared_ptr<ForegroundCell> GetForeground(CellPosition cellPosition) const
-        {
-            return cellStacks_[cellPosition.row][cellPosition.col].GetForeground();
-        }
-
-        std::shared_ptr<IBackgroundCell> GetBackground(CellPosition cellPosition) const
-        {
-            return cellStacks_[cellPosition.row][cellPosition.col].GetBackground();
-        }
-
         bool CanBuild(const std::shared_ptr<ForegroundCell> &cell)
         {
             if (cell == nullptr)
@@ -569,7 +564,7 @@ namespace Feis
         if (!IsWithinBoard(targetCellPosition))
             return;
 
-        auto foregroundCell = board.GetForeground(targetCellPosition);
+        auto foregroundCell = board.GetCellStack(targetCellPosition).GetForeground();
 
         if (foregroundCell)
         {
@@ -584,7 +579,7 @@ namespace Feis
         if (!IsWithinBoard(neighborCellPosition))
             return 0;
 
-        auto foregroundCell = board.GetForeground(neighborCellPosition);
+        auto foregroundCell = board.GetCellStack(neighborCellPosition).GetForeground();
 
         if (foregroundCell)
         {
@@ -672,7 +667,7 @@ namespace Feis
             if (elapsedTime_ >= 100)
             {
                 auto numberCell =
-                    dynamic_cast<const NumberCell *>(board.GetBackground(cellPosition).get());
+                    dynamic_cast<const NumberCell *>(board.GetCellStack(cellPosition).GetBackground().get());
 
                 if (numberCell && GetNeighborCapacity(board, cellPosition, direction_) >= 3)
                 {
@@ -714,7 +709,7 @@ namespace Feis
     class IGamePlayer
     {
     public:
-        virtual PlayerAction GetNextAction() = 0;
+        virtual PlayerAction GetNextAction(const IGameInfo& info) = 0;
     };
 
     class GameManager : public IGameManager
@@ -760,7 +755,7 @@ namespace Feis
                 CellPosition cellPosition;
                 cellPosition.row = disRow(gen);
                 cellPosition.col = disCol(gen);
-                if (board_.GetForeground(cellPosition) == nullptr)
+                if (board_.GetCellStack(cellPosition).GetForeground() == nullptr)
                 {
                     board_.template Build<WallCell>(cellPosition);
                 }
@@ -815,7 +810,7 @@ namespace Feis
             
             if (elapsedTime_ % 3 == 0) 
             {
-                PlayerAction playerAction = player_->GetNextAction();
+                PlayerAction playerAction = player_->GetNextAction(*this);
 
                 switch (playerAction.type)
                 {

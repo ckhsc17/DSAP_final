@@ -10,10 +10,10 @@ public:
     using CellPosition = Feis::CellPosition;
 
     CellRendererThirdPassVisitor(
-        const Feis::IGameManager* gameManager,
+        const Feis::IGameInfo* info,
         Drawer<TGameRendererConfig> *drawer, 
         CellPosition cellPosition)
-        : gameManager_(gameManager), drawer_(drawer), cellPosition_(cellPosition)
+        : info_(info), drawer_(drawer), cellPosition_(cellPosition)
     {
     }
     void Visit(const Feis::CollectionCenterCell *cell) const override
@@ -40,7 +40,7 @@ public:
             scoreTextPosition);
 
         drawer_->DrawText(
-            gameManager_->GetLevelInfo(),
+            info_->GetLevelInfo(),
             16,
             sf::Color(0, 255, 0),
             scoreTextPosition + sf::Vector2f(0, 30));
@@ -70,7 +70,7 @@ public:
     }
 
 private:
-    const Feis::IGameManager *gameManager_;
+    const Feis::IGameInfo *info_;
     Drawer<TGameRendererConfig> * const drawer_;
     CellPosition cellPosition_;
 };

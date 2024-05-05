@@ -12,11 +12,11 @@ public:
     using IBackgroundCell = Feis::IBackgroundCell;
 
     CellRendererFirstPassVisitor(
-        const Feis::IGameManager *gameManager,
+        const Feis::IGameInfo *info,
         Drawer<TGameRendererConfig> *drawer,
         CellPosition cellPosition,
         IBackgroundCell *backgroundCell)
-        : gameManager_{gameManager}, drawer_(drawer), cellPosition_(cellPosition), backgroundCell_(backgroundCell)
+        : info{info}, drawer_(drawer), cellPosition_(cellPosition), backgroundCell_(backgroundCell)
     {
     }
 
@@ -83,7 +83,7 @@ public:
         drawer_->DrawBorder(cellPosition_);
     }
 private:
-    const Feis::IGameManager *gameManager_;
+    const Feis::IGameInfo *info;
     Drawer<TGameRendererConfig> *drawer_;
     CellPosition cellPosition_;
     IBackgroundCell *backgroundCell_;

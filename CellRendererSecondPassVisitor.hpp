@@ -10,10 +10,10 @@ public:
     using CellPosition = Feis::CellPosition;
 
     CellRendererSecondPassVisitor(
-        const Feis::IGameManager* gameManager,
+        const Feis::IGameInfo* info,
         Drawer<TGameRendererConfig> *drawer, 
         CellPosition cellPosition)
-        : gameManager_(gameManager), drawer_(drawer), cellPosition_(cellPosition)
+        : info(info), drawer_(drawer), cellPosition_(cellPosition)
     {
     }
     void Visit(const Feis::ConveyorCell *cell) const override
@@ -55,7 +55,7 @@ public:
                 drawer_->DrawCircle(
                     center,
                     TGameRendererConfig::kCellSize * 0.6,
-                    gameManager_->IsScoredProduct(product) ? sf::Color(30, 60, 30) : sf::Color(30, 30, 30));
+                    info->IsScoredProduct(product) ? sf::Color(30, 60, 30) : sf::Color(30, 30, 30));
 
                 drawer_->DrawText(
                     std::to_string(product),
@@ -66,7 +66,7 @@ public:
         }
     }
 private:
-    const Feis::IGameManager *gameManager_;
+    const Feis::IGameInfo *info;
     Drawer<TGameRendererConfig> *drawer_;
     CellPosition cellPosition_;
 };

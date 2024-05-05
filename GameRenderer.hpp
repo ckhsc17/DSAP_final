@@ -12,7 +12,7 @@ public:
     {
     }
 
-    void Render(const Feis::GameManager &gameManager)
+    void Render(const Feis::IGameInfo &gameManagerInfo)
     {
         renderer_.Clear();
 
@@ -20,7 +20,7 @@ public:
         {
             for (int col = 0; col < GameManagerConfig::kBoardWidth; ++col)
             {
-                cellStackRenderer_.RenderPassOne(gameManager, renderer_, {row, col});
+                cellStackRenderer_.RenderPassOne(gameManagerInfo, renderer_, {row, col});
             }
         }
 
@@ -28,7 +28,7 @@ public:
         {
             for (int col = 0; col < GameManagerConfig::kBoardWidth; ++col)
             {
-                cellStackRenderer_.RenderPassTwo(gameManager, renderer_, {row, col});
+                cellStackRenderer_.RenderPassTwo(gameManagerInfo, renderer_, {row, col});
             }
         }
 
@@ -36,11 +36,11 @@ public:
         {
             for (int col = 0; col < GameManagerConfig::kBoardWidth; ++col)
             {
-                cellStackRenderer_.RenderPassThree(gameManager, renderer_, {row, col});
+                cellStackRenderer_.RenderPassThree(gameManagerInfo, renderer_, {row, col});
             }
         }
 
-        int timeLeft = gameManager.GetEndTime() - gameManager.GetElapsedTime();
+        int timeLeft = gameManagerInfo.GetEndTime() - gameManagerInfo.GetElapsedTime();
 
         renderer_.DrawText(
             std::to_string(timeLeft / (TGameRendererConfig::kFPS * 60) / 10) +

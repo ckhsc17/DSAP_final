@@ -28,7 +28,7 @@ CellPosition GetMouseCellPosition(const sf::RenderWindow &window)
 class GamePlayer : public IGamePlayer 
 {
 public:
-    PlayerAction GetNextAction() override 
+    PlayerAction GetNextAction(const IGameInfo& info) override 
     {
         if (actions_.empty())
         {

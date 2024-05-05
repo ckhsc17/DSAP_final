@@ -9,29 +9,29 @@ template<typename TGameRendererConfig>
 class CellStackRenderer
 {
 public:
-    using IGameManager = Feis::IGameManager;
+    using IGameInfo = Feis::IGameInfo;
     using CellPosition = Feis::CellPosition;
 
     void RenderPassOne(
-        const IGameManager &gameManager,
+        const IGameInfo &info,
         Drawer<TGameRendererConfig> &renderer, 
         CellPosition position) const
     {
-        auto& cellStack = gameManager.GetCellStack(position);
+        auto& cellStack = info.GetCellStack(position);
 
         auto foreground = cellStack.GetForeground();
         auto background = cellStack.GetBackground();
 
         if (foreground)
         {
-            CellRendererFirstPassVisitor<TGameRendererConfig> cellRenderer(&gameManager, &renderer, position, background.get());
+            CellRendererFirstPassVisitor<TGameRendererConfig> cellRenderer(&info, &renderer, position, background.get());
             foreground->Accept(&cellRenderer);
             return;
         }
 
         if (background)
         {
-            CellRendererFirstPassVisitor<TGameRendererConfig> cellRenderer(&gameManager, &renderer, position, background.get());
+            CellRendererFirstPassVisitor<TGameRendererConfig> cellRenderer(&info, &renderer, position, background.get());
             background->Accept(&cellRenderer);
             return;
         }
@@ -40,32 +40,32 @@ public:
     }
 
     void RenderPassTwo(
-        const IGameManager &gameManager,
+        const IGameInfo &info,
         Drawer<TGameRendererConfig> &drawer,
         CellPosition cellPosition) const
     {
-        auto& cellStack = gameManager.GetCellStack(cellPosition);
+        auto& cellStack = info.GetCellStack(cellPosition);
 
         auto foreground = cellStack.GetForeground();
 
         if (foreground)
         {
-            CellRendererSecondPassVisitor<TGameRendererConfig> cellRenderer(&gameManager, &drawer, cellPosition);
+            CellRendererSecondPassVisitor<TGameRendererConfig> cellRenderer(&info, &drawer, cellPosition);
             foreground->Accept(&cellRenderer);
         }
     }
 
     void RenderPassThree(
-        const IGameManager &gameManager,
+        const IGameInfo &info,
         Drawer<TGameRendererConfig> &drawer,
         CellPosition cellPosition) const
     {
-        auto& cellStack = gameManager.GetCellStack(cellPosition);
+        auto& cellStack = info.GetCellStack(cellPosition);
 
         auto foreground = cellStack.GetForeground();
         if (foreground)
         {
-            CellRendererThirdPassVisitor<TGameRendererConfig> cellRenderer(&gameManager, &drawer, cellPosition);
+            CellRendererThirdPassVisitor<TGameRendererConfig> cellRenderer(&info, &drawer, cellPosition);
             foreground->Accept(&cellRenderer);
         }
     }
