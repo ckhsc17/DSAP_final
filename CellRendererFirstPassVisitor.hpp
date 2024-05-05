@@ -3,28 +3,29 @@
 #include "PDOGS.hpp"
 #include "Drawer.hpp"
 
-template <typename TGameConfig>
-class CellRendererFirstPassVisitor : public Feis::ICellVisitor<TGameConfig>
+template <typename TGameRendererConfig>
+class CellRendererFirstPassVisitor : public Feis::CellVisitor
 {
 public:
     using CellPosition = Feis::CellPosition;
     using Direction = Feis::Direction;
-    using IBackgroundCell = Feis::IBackgroundCell<TGameConfig>;
+    using IBackgroundCell = Feis::IBackgroundCell;
 
     CellRendererFirstPassVisitor(
-        Drawer<TGameConfig> *drawer,
+        const Feis::IGameManager *gameManager,
+        Drawer<TGameRendererConfig> *drawer,
         CellPosition cellPosition,
         IBackgroundCell *backgroundCell)
-        : drawer_(drawer), cellPosition_(cellPosition), backgroundCell_(backgroundCell)
+        : gameManager_{gameManager}, drawer_(drawer), cellPosition_(cellPosition), backgroundCell_(backgroundCell)
     {
     }
 
-    void Visit(const Feis::Cell<TGameConfig> *cell) const
+    void Visit(const Feis::Cell *cell) const
     {
         cell->Accept(this);
     }
 
-    void Visit(const Feis::NumberCell<TGameConfig> *cell) const override
+    void Visit(const Feis::NumberCell *cell) const override
     {
         drawer_->DrawBorder(cellPosition_);
 
@@ -38,18 +39,18 @@ public:
 
         drawer_->DrawText(
             std::to_string(number),
-            TGameConfig::kCellSize * 0.75f,
+            TGameRendererConfig::kCellSize * 0.75f,
             color,
             cellPosition_);
     }
 
-    void Visit(const Feis::CollectionCenterCell<TGameConfig> *cell) const override
+    void Visit(const Feis::CollectionCenterCell *cell) const override
     {
         if (cellPosition_ != cell->GetTopLeftCellPosition())
             return;
 
         sf::RectangleShape rectangle(
-            sf::Vector2f(TGameConfig::kCellSize * cell->GetWidth(), TGameConfig::kCellSize * cell->GetHeight()));
+            sf::Vector2f(TGameRendererConfig::kCellSize * cell->GetWidth(), TGameRendererConfig::kCellSize * cell->GetHeight()));
 
         rectangle.setFillColor(sf::Color(0, 0, 180));
         rectangle.setPosition(drawer_->GetCellTopLeft(cellPosition_));
@@ -57,7 +58,7 @@ public:
 
         sf::Vector2f scoreTextPosition =
             drawer_->GetCellTopLeft(cell->GetTopLeftCellPosition()) +
-            sf::Vector2f(cell->GetWidth(), cell->GetHeight()) * 0.5f * static_cast<float>(TGameConfig::kCellSize) +
+            sf::Vector2f(cell->GetWidth(), cell->GetHeight()) * 0.5f * static_cast<float>(TGameRendererConfig::kCellSize) +
             sf::Vector2f(0, -10);
 
         drawer_->DrawText(
@@ -67,45 +68,50 @@ public:
             scoreTextPosition);
 
         drawer_->DrawText(
-            "(" + std::to_string(TGameConfig::kCommonDivisor) + ")",
+            gameManager_->GetLevelInfo(),
             16,
             sf::Color(0, 255, 0),
             scoreTextPosition + sf::Vector2f(0, 30));
     }
 
-    void Visit(const Feis::MiningMachineCell<TGameConfig> *cell) const override
+    void Visit(const Feis::MiningMachineCell *cell) const override
     {
         drawer_->DrawRectangle(cellPosition_, sf::Color(128, 0, 0));
 
         auto numberCell =
-            dynamic_cast<const Feis::NumberCell<TGameConfig> *>(backgroundCell_);
+            dynamic_cast<const Feis::NumberCell *>(backgroundCell_);
 
         if (numberCell)
         {
             drawer_->DrawText(
                 std::to_string(numberCell->GetNumber()),
-                TGameConfig::kCellSize * 0.8,
+                TGameRendererConfig::kCellSize * 0.8,
                 sf::Color::White,
                 cellPosition_,
                 static_cast<Direction>((static_cast<int>(cell->GetDirection()) + 1) % 4));
         }
     }
 
-    void Visit(const Feis::ConveyorCell<TGameConfig> *cell) const override
+    void Visit(const Feis::ConveyorCell *cell) const override
     {
         drawer_->DrawBorder(cellPosition_);
         drawer_->DrawRectangle(cellPosition_, sf::Color(128, 128, 128));
         drawer_->DrawArrow(cellPosition_, cell->GetDirection());
     }
 
-    void Visit(const Feis::CombinerCell<TGameConfig> *cell) const override
+    void Visit(const Feis::CombinerCell *cell) const override
     {
         drawer_->DrawBorder(cellPosition_);
     }
 
+    void Visit(const Feis::WallCell *cell) const override
+    {
+        drawer_->DrawBorder(cellPosition_);
+    }
 private:
-    Drawer<TGameConfig> *drawer_;
-    Feis::CellPosition cellPosition_;
+    const Feis::IGameManager *gameManager_;
+    Drawer<TGameRendererConfig> *drawer_;
+    CellPosition cellPosition_;
     IBackgroundCell *backgroundCell_;
 };
 #endif

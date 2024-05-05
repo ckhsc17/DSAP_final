@@ -7,14 +7,25 @@
 
 using namespace Feis;
 
-template <typename TGameConfig>
+struct GameConfig {
+    static constexpr int kFPS = 30;
+};
+
+struct GameRendererConfig
+{
+    static constexpr int kCellSize = 20;
+    static constexpr int kBoardLeft = 20;
+    static constexpr int kBoardTop = 60;
+    static constexpr int kBorderSize = 1;
+};
+
 CellPosition GetMouseCellPosition(const sf::RenderWindow &window)
 {
     const sf::Vector2i mousePosition = sf::Mouse::getPosition(window);
     const sf::Vector2i relatedMousePosition =
-        mousePosition - sf::Vector2i(TGameConfig::kBoardLeft, TGameConfig::kBoardTop);
-    return {relatedMousePosition.y / TGameConfig::kCellSize,
-            relatedMousePosition.x / TGameConfig::kCellSize};
+        mousePosition - sf::Vector2i(GameRendererConfig::kBoardLeft, GameRendererConfig::kBoardTop);
+    return {relatedMousePosition.y / GameRendererConfig::kCellSize,
+            relatedMousePosition.x / GameRendererConfig::kCellSize};
 }
 
 int main(int, char **)
@@ -25,7 +36,7 @@ int main(int, char **)
 
     window.setFramerateLimit(GameConfig::kFPS);
 
-    GameManager<GameConfig> gameManager;
+    GameManager gameManager(3, 20);
 
     const std::map<sf::Keyboard::Key, PlayerAction> playerActionKeyboardMap = {
         {sf::Keyboard::J, PlayerAction::BuildLeftOutMiningMachine},
@@ -45,7 +56,7 @@ int main(int, char **)
 
     PlayerAction playerAction = PlayerAction::BuildLeftToRightConveyor;
 
-    GameRenderer<GameConfig> gameRenderer(&window);
+    GameRenderer<GameRendererConfig> gameRenderer(&window);
 
     while (window.isOpen())
     {
@@ -54,9 +65,9 @@ int main(int, char **)
         {
             if (event.type == sf::Event::MouseButtonReleased)
             {
-                CellPosition mouseCellPosition = GetMouseCellPosition<GameConfig>(window);
+                CellPosition mouseCellPosition = GetMouseCellPosition(window);
 
-                if (IsWithinBoard<GameConfig>(mouseCellPosition))
+                if (IsWithinBoard(mouseCellPosition))
                 {
                     if (event.mouseButton.button == sf::Mouse::Left)
                     {
@@ -81,15 +92,5 @@ int main(int, char **)
         gameManager.Update();
 
         gameRenderer.Render(gameManager);  
-
-        /*         sf::Vector2i mousePosition = GetMouseCellPosition(renderer);
-
-        // Mouse Position
-        renderer.DrawText(
-            "(" + std::to_string(mousePosition.x) + ", " + std::to_string(mousePosition.y) + ")",
-            20,
-            sf::Color::White,
-            sf::Vector2f(50, 20));
-*/
     }
 }

@@ -6,9 +6,19 @@
 #include <queue>
 #include <functional>
 #include <cassert>
+#include <set>
 
 namespace Feis
 {
+    struct GameManagerConfig
+    {
+        static constexpr std::size_t kBoardWidth = 62;
+        static constexpr std::size_t kBoardHeight = 36;
+        static constexpr std::size_t kGoalSize = 4;
+        static constexpr std::size_t kConveyorBufferSize = 10;
+        static constexpr std::size_t kNumberOfWalls = 100;
+    };
+
     struct CellPosition
     {
         int row;
@@ -44,31 +54,54 @@ namespace Feis
         kLeft = 3
     };
 
-    template <typename TGameConfig>
     class GameBoard;
 
-    template <typename TGameConfig>
+    class CellStack;
+
+    class IGameManager
+    {
+    public:
+        virtual std::string GetLevelInfo() const = 0;
+        virtual const CellStack &GetCellStack(CellPosition cellPosition) const = 0;
+        virtual bool IsScoredProduct(int number) const = 0;
+        virtual int GetScores() const = 0;
+
+        virtual void OnProductReceived(int number) = 0;
+    };
+
     class Cell;
 
-    template <typename TGameConfig>
-    class ICellVisitor;
+    class NumberCell;
+    class CollectionCenterCell;
+    class MiningMachineCell;
+    class ConveyorCell;
+    class CombinerCell;
+    class WallCell;
 
-    template <typename TGameConfig>
+    class CellVisitor
+    {
+    public:
+        virtual void Visit(const NumberCell *cell) const {}
+        virtual void Visit(const CollectionCenterCell *cell) const  {}
+        virtual void Visit(const MiningMachineCell *cell) const  {}
+        virtual void Visit(const ConveyorCell *cell) const  {}
+        virtual void Visit(const CombinerCell *cell) const  {}
+        virtual void Visit(const WallCell *cell) const  {}
+    };
+
     class Cell
     {
     public:
-        virtual void Accept(const ICellVisitor<TGameConfig> *visitor) const = 0;
+        virtual void Accept(const CellVisitor *visitor) const = 0;
     };
 
-    template <typename TGameConfig>
-    class IBackgroundCell : public Cell<TGameConfig>
+    class IBackgroundCell : public Cell
     {
     public:
         virtual bool CanBuild() const = 0;
     };
 
-    template <typename TGameConfig>
-    class ForegroundCell : public Cell<TGameConfig>
+    class ForegroundCell : public Cell
     {
     public:
         ForegroundCell(CellPosition topLeftCellPosition) : topLeftCellPosition_(topLeftCellPosition) {}
@@ -79,15 +112,15 @@ namespace Feis
 
         virtual CellPosition GetTopLeftCellPosition() const { return topLeftCellPosition_; }
 
-        virtual bool CanRemove() const = 0;
+        virtual bool CanRemove() const { return false; }
 
-        virtual std::size_t GetCapacity(CellPosition cellPosition) const = 0;
+        virtual std::size_t GetCapacity(CellPosition cellPosition) const { return 0; }
 
-        virtual void ReceiveProduct(CellPosition cellPosition, int number) = 0;
+        virtual void ReceiveProduct(CellPosition cellPosition, int number) { }
 
-        virtual void UpdatePassOne(CellPosition cellPosition, GameBoard<TGameConfig> &board) = 0;
+        virtual void UpdatePassOne(CellPosition cellPosition, GameBoard &board) { }
 
-        virtual void UpdatePassTwo(CellPosition cellPosition, GameBoard<TGameConfig> &board) = 0;
+        virtual void UpdatePassTwo(CellPosition cellPosition, GameBoard &board) { }
 
     protected:
         CellPosition topLeftCellPosition_;
@@ -115,62 +148,23 @@ namespace Feis
         }
     }
 
-    template <typename TGameConfig>
-    bool IsWithinBoard(CellPosition cellPosition)
-    {
-        return cellPosition.row >= 0 && cellPosition.row < TGameConfig::kBoardHeight &&
-               cellPosition.col >= 0 && cellPosition.col < TGameConfig::kBoardWidth;
-    }
+    std::size_t GetNeighborCapacity(const GameBoard &board, CellPosition cellPosition, Direction direction);
 
-    template <typename TGameConfig>
-    void SendProduct(GameBoard<TGameConfig> &board, CellPosition cellPosition, Direction direction, int product)
-    {        
-        CellPosition targetCellPosition = GetNeighborCellPosition(cellPosition, direction);
+    void SendProduct(GameBoard &board, CellPosition cellPosition, Direction direction, int product);
 
-        if (!IsWithinBoard<TGameConfig>(targetCellPosition))
-            return;
-
-        auto foregroundCell = board.GetForeground(targetCellPosition);
-
-        if (foregroundCell)
-        {
-            foregroundCell->ReceiveProduct(targetCellPosition, product);
-        }
-    }
-
-
-    template <typename TGameConfig>
-    std::size_t GetNeighborCapacity(
-        const GameBoard<TGameConfig> &board, CellPosition cellPosition, Direction direction)
-    {
-        CellPosition neighborCellPosition = GetNeighborCellPosition(cellPosition, direction);
-
-        if (!IsWithinBoard<TGameConfig>(neighborCellPosition))
-            return 0;
-
-        auto foregroundCell = board.GetForeground(neighborCellPosition);
-
-        if (foregroundCell)
-        {
-            return foregroundCell->GetCapacity(neighborCellPosition);
-        }
-        return 0;
-    }
-
-    template <typename TGameConfig>
-    class ConveyorCell : public ForegroundCell<TGameConfig>
+    class ConveyorCell : public ForegroundCell
     {
     public:
         ConveyorCell(CellPosition topLeftCellPosition, Direction direction)
-            : ForegroundCell<TGameConfig>(topLeftCellPosition), direction_{direction}, products_{} {}
+            : ForegroundCell(topLeftCellPosition), direction_{direction}, products_{} {}
 
         int GetProduct(std::size_t i) const { return products_[i]; }
 
-        std::size_t GetProductCount() const { return products_.size();}
+        std::size_t GetProductCount() const { return products_.size(); }
 
         Direction GetDirection() const { return direction_; }
 
-        void Accept(const ICellVisitor<TGameConfig> *visitor) const override
+        void Accept(const CellVisitor *visitor) const override
         {
             visitor->Visit(this);
         }
@@ -199,15 +193,15 @@ namespace Feis
             products_.back() = number;
         }
 
-        void UpdatePassOne(CellPosition cellPosition, GameBoard<TGameConfig> &board) override
+        void UpdatePassOne(CellPosition cellPosition, GameBoard &board) override
         {
-            std::size_t capacity = GetNeighborCapacity<TGameConfig>(board, cellPosition, direction_);
+            std::size_t capacity = GetNeighborCapacity(board, cellPosition, direction_);
 
             if (capacity >= 3)
             {
                 if (products_[0] != 0)
                 {
-                    SendProduct<TGameConfig>(board, cellPosition, direction_, products_[0]);
+                    SendProduct(board, cellPosition, direction_, products_[0]);
                     products_[0] = 0;
                 }
             }
@@ -229,7 +223,7 @@ namespace Feis
             }
         }
 
-        void UpdatePassTwo(CellPosition cellPosition, GameBoard<TGameConfig> &board) override
+        void UpdatePassTwo(CellPosition cellPosition, GameBoard &board) override
         {
             for (std::size_t k = 3; k < products_.size(); ++k)
             {
@@ -241,26 +235,25 @@ namespace Feis
         }
 
     protected:
-        std::array<int, TGameConfig::kConveyorBufferSize> products_;
+        std::array<int, GameManagerConfig::kConveyorBufferSize> products_;
 
     private:
         Direction direction_;
     };
 
-    template <typename TGameConfig>
-    class CombinerCell : public ForegroundCell<TGameConfig>
+    class CombinerCell : public ForegroundCell
     {
     public:
         CombinerCell(CellPosition topLeft, Direction direction)
-            : ForegroundCell<TGameConfig>(topLeft), direction_{direction}, firstSlotProduct_{}, secondSlotProduct_{} {}
+            : ForegroundCell(topLeft), direction_{direction}, firstSlotProduct_{}, secondSlotProduct_{} {}
 
         Direction GetDirection() const { return direction_; }
-        
+
         int GetFirstSlotProduct() const { return firstSlotProduct_; }
 
         int GetSecondSlotProduct() const { return secondSlotProduct_; }
 
-        void Accept(const ICellVisitor<TGameConfig> *visitor) const override
+        void Accept(const CellVisitor *visitor) const override
         {
             visitor->Visit(this);
         }
@@ -286,10 +279,10 @@ namespace Feis
             {
             case Direction::kTop:
             case Direction::kRight:
-                return cellPosition != ForegroundCell<TGameConfig>::topLeftCellPosition_;
+                return cellPosition != ForegroundCell::topLeftCellPosition_;
             case Direction::kBottom:
             case Direction::kLeft:
-                return cellPosition == ForegroundCell<TGameConfig>::topLeftCellPosition_;
+                return cellPosition == ForegroundCell::topLeftCellPosition_;
             }
         }
 
@@ -299,14 +292,14 @@ namespace Feis
             {
                 if (firstSlotProduct_ == 0)
                 {
-                    return TGameConfig::kConveyorBufferSize;
+                    return GameManagerConfig::kConveyorBufferSize;
                 }
                 return 0;
             }
 
             if (secondSlotProduct_ == 0)
             {
-                return TGameConfig::kConveyorBufferSize;
+                return GameManagerConfig::kConveyorBufferSize;
             }
             return 0;
         }
@@ -325,110 +318,94 @@ namespace Feis
             }
         }
 
-        void UpdatePassOne(CellPosition cellPosition, GameBoard<TGameConfig> &board) override
+        void UpdatePassOne(CellPosition cellPosition, GameBoard &board) override
         {
             if (!IsMainCell(cellPosition))
                 return;
 
             if (firstSlotProduct_ != 0 && secondSlotProduct_ != 0)
             {
-                if (GetNeighborCapacity<TGameConfig>(board, cellPosition, direction_) >= 3)
+                if (GetNeighborCapacity(board, cellPosition, direction_) >= 3)
                 {
-                    SendProduct<TGameConfig>(board, cellPosition, direction_, firstSlotProduct_ + secondSlotProduct_);
+                    SendProduct(board, cellPosition, direction_, firstSlotProduct_ + secondSlotProduct_);
                     firstSlotProduct_ = 0;
                     secondSlotProduct_ = 0;
                 }
             }
         }
-
-        void UpdatePassTwo(CellPosition cellPosition, GameBoard<TGameConfig> &board) override
-        {
-        }
-
     private:
         int firstSlotProduct_;
         int secondSlotProduct_;
         Direction direction_;
     };
 
-    template <typename TGameConfig>
-    class WallCell : public ForegroundCell<TGameConfig>
+    class WallCell : public ForegroundCell
     {
     public:
+        WallCell(CellPosition topLeft) : ForegroundCell(topLeft) {}
+
         bool CanRemove() const override
         {
             return false;
         }
+        void Accept(const CellVisitor *visitor) const override
+        {
+            visitor->Visit(this);
+        }
     };
 
-    template <typename TGameConfig>
-    class CollectionCenterCell : public ForegroundCell<TGameConfig>
+    class CollectionCenterCell : public ForegroundCell
     {
     public:
         CollectionCenterCell(
             CellPosition topLeft,
-            std::function<void()> onProductReceived,
-            std::function<int()> getScores)
-            : ForegroundCell<TGameConfig>(topLeft),
-              onProductReceived_(onProductReceived),
-              getScores_(getScores) {}
+            IGameManager *gameManager)
+            : ForegroundCell(topLeft),
+              gameManager_{gameManager} {}
 
-        void Accept(const ICellVisitor<TGameConfig> *visitor) const override
+        void Accept(const CellVisitor *visitor) const override
         {
             visitor->Visit(this);
         }
 
         std::size_t GetWidth() const override
         {
-            return TGameConfig::kGoalSize;
+            return GameManagerConfig::kGoalSize;
         }
         std::size_t GetHeight() const override
         {
-            return TGameConfig::kGoalSize;
-        }
-        bool CanRemove() const override
-        {
-            return false;
+            return GameManagerConfig::kGoalSize;
         }
         std::size_t GetCapacity(CellPosition cellPosition) const override
         {
-            return TGameConfig::kConveyorBufferSize;
+            return GameManagerConfig::kConveyorBufferSize;
         }
         void ReceiveProduct(CellPosition cellPosition, int number) override
         {
             assert(number != 0);
-            if (number % TGameConfig::kCommonDivisor == 0)
+
+            if (number)
             {
-                onProductReceived_();
+                gameManager_->OnProductReceived(number);
             }
         }
-
-        void UpdatePassOne(CellPosition cellPosition, GameBoard<TGameConfig> &board) override
+        int GetScores() const
         {
-        }
-
-        void UpdatePassTwo(CellPosition cellPosition, GameBoard<TGameConfig> &board) override
-        {
-        }
-
-        int GetScores() const {
-            return getScores_();
+            return gameManager_->GetScores();
         }
 
     private:
-        std::function<void()> onProductReceived_;
-        std::function<int()> getScores_;
+        IGameManager *gameManager_;
     };
 
-    template <typename TGameConfig>
     class CellStack
     {
     public:
-        std::shared_ptr<ForegroundCell<TGameConfig>> GetForeground() const
+        std::shared_ptr<ForegroundCell> GetForeground() const
         {
             return foreground_;
         }
-        std::shared_ptr<IBackgroundCell<TGameConfig>> GetBackground() const
+        std::shared_ptr<IBackgroundCell> GetBackground() const
         {
             return background_;
         }
@@ -438,40 +415,39 @@ namespace Feis
                    (background_ == nullptr || background_->CanBuild());
         }
 
-        void SetForegrund(const std::shared_ptr<ForegroundCell<TGameConfig>> &value)
+        void SetForegrund(const std::shared_ptr<ForegroundCell> &value)
         {
             foreground_ = value;
         }
-        void SetBackground(const std::shared_ptr<IBackgroundCell<TGameConfig>> &value)
+        void SetBackground(const std::shared_ptr<IBackgroundCell> &value)
         {
             background_ = value;
         }
 
     private:
-        std::shared_ptr<ForegroundCell<TGameConfig>> foreground_;
-        std::shared_ptr<IBackgroundCell<TGameConfig>> background_;
+        std::shared_ptr<ForegroundCell> foreground_;
+        std::shared_ptr<IBackgroundCell> background_;
     };
 
-    template <typename TGameConfig>
     class GameBoard
     {
     public:
-        const CellStack<TGameConfig> &GetCellStack(int row, int col) const
+        const CellStack &GetCellStack(CellPosition cellPosition) const
         {
-            return cellStacks_[row][col];
+            return cellStacks_[cellPosition.row][cellPosition.col];
         }
 
-        std::shared_ptr<ForegroundCell<TGameConfig>> GetForeground(CellPosition cellPosition) const
+        std::shared_ptr<ForegroundCell> GetForeground(CellPosition cellPosition) const
         {
             return cellStacks_[cellPosition.row][cellPosition.col].GetForeground();
         }
 
-        std::shared_ptr<IBackgroundCell<TGameConfig>> GetBackground(CellPosition cellPosition) const
+        std::shared_ptr<IBackgroundCell> GetBackground(CellPosition cellPosition) const
         {
             return cellStacks_[cellPosition.row][cellPosition.col].GetBackground();
         }
 
-        bool CanBuild(const std::shared_ptr<ForegroundCell<TGameConfig>> &cell)
+        bool CanBuild(const std::shared_ptr<ForegroundCell> &cell)
         {
             if (cell == nullptr)
             {
@@ -480,8 +456,8 @@ namespace Feis
 
             CellPosition cellPosition = cell->GetTopLeftCellPosition();
 
-            if (cellPosition.col < 0 || cellPosition.col + cell->GetWidth() > TGameConfig::kBoardWidth ||
-                cellPosition.row < 0 || cellPosition.row + cell->GetHeight() > TGameConfig::kBoardHeight)
+            if (cellPosition.col < 0 || cellPosition.col + cell->GetWidth() > GameManagerConfig::kBoardWidth ||
+                cellPosition.row < 0 || cellPosition.row + cell->GetHeight() > GameManagerConfig::kBoardHeight)
             {
                 return false;
             }
@@ -539,16 +515,16 @@ namespace Feis
             }
         }
 
-        void SetBackground(CellPosition cellPosition, std::shared_ptr<IBackgroundCell<TGameConfig>> value)
+        void SetBackground(CellPosition cellPosition, std::shared_ptr<IBackgroundCell> value)
         {
             cellStacks_[cellPosition.row][cellPosition.col].SetBackground(value);
         }
 
         void Update()
         {
-            for (int row = 0; row < TGameConfig::kBoardHeight; ++row)
+            for (int row = 0; row < GameManagerConfig::kBoardHeight; ++row)
             {
-                for (int col = 0; col < TGameConfig::kBoardWidth; ++col)
+                for (int col = 0; col < GameManagerConfig::kBoardWidth; ++col)
                 {
                     auto &cellStack = cellStacks_[row][col];
                     auto foreground = cellStack.GetForeground();
@@ -558,9 +534,9 @@ namespace Feis
                     }
                 }
             }
-            for (int row = 0; row < TGameConfig::kBoardHeight; ++row)
+            for (int row = 0; row < GameManagerConfig::kBoardHeight; ++row)
             {
-                for (int col = 0; col < TGameConfig::kBoardWidth; ++col)
+                for (int col = 0; col < GameManagerConfig::kBoardWidth; ++col)
                 {
                     auto &cellStack = cellStacks_[row][col];
                     auto foreground = cellStack.GetForeground();
@@ -573,11 +549,47 @@ namespace Feis
         }
 
     private:
-        std::array<std::array<CellStack<TGameConfig>, TGameConfig::kBoardWidth>, TGameConfig::kBoardHeight> cellStacks_;
+        std::array<std::array<CellStack, GameManagerConfig::kBoardWidth>, GameManagerConfig::kBoardHeight> cellStacks_;
     };
 
-    template <typename TGameConfig>
-    class NumberCell : public IBackgroundCell<TGameConfig>
+    bool IsWithinBoard(CellPosition cellPosition)
+    {
+        return cellPosition.row >= 0 && cellPosition.row < GameManagerConfig::kBoardHeight &&
+               cellPosition.col >= 0 && cellPosition.col < GameManagerConfig::kBoardWidth;
+    }
+
+    void SendProduct(GameBoard &board, CellPosition cellPosition, Direction direction, int product)
+    {
+        CellPosition targetCellPosition = GetNeighborCellPosition(cellPosition, direction);
+
+        if (!IsWithinBoard(targetCellPosition))
+            return;
+
+        auto foregroundCell = board.GetForeground(targetCellPosition);
+
+        if (foregroundCell)
+        {
+            foregroundCell->ReceiveProduct(targetCellPosition, product);
+        }
+    }
+
+    std::size_t GetNeighborCapacity(const GameBoard &board, CellPosition cellPosition, Direction direction)
+    {
+        CellPosition neighborCellPosition = GetNeighborCellPosition(cellPosition, direction);
+
+        if (!IsWithinBoard(neighborCellPosition))
+            return 0;
+
+        auto foregroundCell = board.GetForeground(neighborCellPosition);
+
+        if (foregroundCell)
+        {
+            return foregroundCell->GetCapacity(neighborCellPosition);
+        }
+        return 0;
+    }
+
+    class NumberCell : public IBackgroundCell
     {
     public:
         NumberCell(int number) : number_(number) {}
@@ -592,7 +604,7 @@ namespace Feis
             return true;
         }
 
-        void Accept(const ICellVisitor<TGameConfig> *visitor) const override
+        void Accept(const CellVisitor *visitor) const override
         {
             visitor->Visit(this);
         }
@@ -601,19 +613,20 @@ namespace Feis
         int number_;
     };
 
-    template <typename TGameConfig>
     class BackgroundCellFactory
     {
     public:
-        std::shared_ptr<IBackgroundCell<TGameConfig>> Create()
+        BackgroundCellFactory(unsigned int seed) : gen_(seed) {}
+
+        std::shared_ptr<IBackgroundCell> Create()
         {
-            int val = gen_() % 40;
+            int val = gen_() % 30;
 
-            std::vector<int> numbers = {1, 2, 3, 5, 7, 11};
+            std::set<int> numbers = {1, 2, 3, 5, 7, 11};
 
-            if (std::count(numbers.begin(), numbers.end(), val))
+            if (numbers.count(val))
             {
-                return std::make_shared<NumberCell<TGameConfig>>(val);
+                return std::make_shared<NumberCell>(val);
             }
             else
             {
@@ -625,19 +638,15 @@ namespace Feis
         std::mt19937 gen_;
     };
 
-    template <
-        typename TGameConfig,
-        std::size_t PRODUCTION_TIME = 100>
-
-    class MiningMachineCell : public ForegroundCell<TGameConfig>
+    class MiningMachineCell : public ForegroundCell
     {
     public:
         MiningMachineCell(CellPosition topLeft, Direction direction)
-            : ForegroundCell<TGameConfig>(topLeft), direction_{direction}, elapsedTime_{0} {}
+            : ForegroundCell(topLeft), direction_{direction}, elapsedTime_{0} {}
 
         Direction GetDirection() const { return direction_; }
 
-        void Accept(const ICellVisitor<TGameConfig> *visitor) const override
+        void Accept(const CellVisitor *visitor) const override
         {
             visitor->Visit(this);
         }
@@ -653,41 +662,25 @@ namespace Feis
         void ReceiveProduct(CellPosition cellPosition, int number) override
         {
         }
-        void UpdatePassOne(CellPosition cellPosition, GameBoard<TGameConfig> &board) override
+        void UpdatePassOne(CellPosition cellPosition, GameBoard &board) override
         {
             ++elapsedTime_;
-            if (elapsedTime_ >= PRODUCTION_TIME)
+            if (elapsedTime_ >= 100)
             {
                 auto numberCell =
-                    dynamic_cast<const NumberCell<TGameConfig> *>(board.GetBackground(cellPosition).get());
+                    dynamic_cast<const NumberCell *>(board.GetBackground(cellPosition).get());
 
-                if (numberCell && GetNeighborCapacity<TGameConfig>(board, cellPosition, direction_) >= 3)
+                if (numberCell && GetNeighborCapacity(board, cellPosition, direction_) >= 3)
                 {
-                    SendProduct<TGameConfig>(board, cellPosition, direction_, numberCell->GetNumber());
+                    SendProduct(board, cellPosition, direction_, numberCell->GetNumber());
                 }
 
                 elapsedTime_ = 0;
             }
         }
-
-        void UpdatePassTwo(CellPosition cellPosition, GameBoard<TGameConfig> &board) override
-        {
-        }
-
     private:
         Direction direction_;
         std::size_t elapsedTime_;
-    };
-
-    template <typename TGameConfig>
-    class ICellVisitor
-    {
-    public:
-        virtual void Visit(const NumberCell<TGameConfig> *cell) const = 0;
-        virtual void Visit(const CollectionCenterCell<TGameConfig> *cell) const = 0;
-        virtual void Visit(const MiningMachineCell<TGameConfig> *cell) const = 0;
-        virtual void Visit(const ConveyorCell<TGameConfig> *cell) const = 0;
-        virtual void Visit(const CombinerCell<TGameConfig> *cell) const = 0;
     };
 
     enum class PlayerAction
@@ -707,26 +700,24 @@ namespace Feis
         Clear,
     };
 
-    template <typename TGameConfig>
-    class GameManager
+    class GameManager : public IGameManager
     {
     public:
         struct CollectionCenterConfig
         {
-            static constexpr int kLeft = TGameConfig::kBoardWidth / 2 - TGameConfig::kGoalSize / 2;
-            static constexpr int kTop = TGameConfig::kBoardHeight / 2 - TGameConfig::kGoalSize / 2;
+            static constexpr int kLeft = GameManagerConfig::kBoardWidth / 2 - GameManagerConfig::kGoalSize / 2;
+            static constexpr int kTop = GameManagerConfig::kBoardHeight / 2 - GameManagerConfig::kGoalSize / 2;
         };
 
-        GameManager() : board_(), scores_{}
+        GameManager(int commonDividor, unsigned int seed) : board_(), scores_{}, commonDividor_{commonDividor}
         {
-            static_assert(TGameConfig::kBoardWidth % 2 == 0, "WIDTH must be even");
+            static_assert(GameManagerConfig::kBoardWidth % 2 == 0, "WIDTH must be even");
 
-            BackgroundCellFactory<TGameConfig> backgroundCellFactory;
+            BackgroundCellFactory backgroundCellFactory(seed);
 
-            // Setup Background
-            for (int row = 0; row < TGameConfig::kBoardHeight; ++row)
+            for (int row = 0; row < GameManagerConfig::kBoardHeight; ++row)
             {
-                for (int col = 0; col < TGameConfig::kBoardWidth; ++col)
+                for (int col = 0; col < GameManagerConfig::kBoardWidth; ++col)
                 {
                     auto backgroundCell = backgroundCellFactory.Create();
 
@@ -737,17 +728,47 @@ namespace Feis
             auto collectionCenterTopLeftCellPosition =
                 CellPosition{CollectionCenterConfig::kTop, CollectionCenterConfig::kLeft};
 
-            board_.template Build<CollectionCenterCell<TGameConfig>>(
-                collectionCenterTopLeftCellPosition,
-                [&]()
-                { AddScore(); },
-                [&]()
-                { return scores_; });
+            board_.template Build<CollectionCenterCell>(collectionCenterTopLeftCellPosition, this);
+
+            std::mt19937 gen(seed);
+
+            for (int k = 1; k <= GameManagerConfig::kNumberOfWalls; ++k)
+            {
+                std::uniform_int_distribution<int> disRow(0, GameManagerConfig::kBoardHeight - 1);
+                std::uniform_int_distribution<int> disCol(0, GameManagerConfig::kBoardWidth - 1);
+                CellPosition cellPosition;
+                cellPosition.row = disRow(gen);
+                cellPosition.col = disCol(gen);
+                if (board_.GetForeground(cellPosition) == nullptr)
+                {
+                    board_.template Build<WallCell>(cellPosition);
+                }
+            }
         }
 
-        const CellStack<TGameConfig> &GetCellStack(int row, int col) const
+        std::string GetLevelInfo() const override
         {
-            return board_.GetCellStack(row, col);
+            return "(" + std::to_string(commonDividor_) + ")";
+        }
+
+        bool IsScoredProduct(int number) const override
+        {
+            return number % 2 == 0;
+        }
+
+        void OnProductReceived(int number) override
+        {
+            AddScore();
+        }
+
+        int GetScores() const override
+        {
+            return scores_;
+        }
+
+        const CellStack &GetCellStack(CellPosition cellPosition) const override
+        {
+            return board_.GetCellStack(cellPosition);
         }
 
         void AddScore()
@@ -760,40 +781,40 @@ namespace Feis
             switch (playerAction)
             {
             case PlayerAction::BuildLeftOutMiningMachine:
-                board_.template Build<MiningMachineCell<TGameConfig>>(cellPosition, Direction::kLeft);
+                board_.template Build<MiningMachineCell>(cellPosition, Direction::kLeft);
                 break;
             case PlayerAction::BuildTopOutMiningMachine:
-                board_.template Build<MiningMachineCell<TGameConfig>>(cellPosition, Direction::kTop);
+                board_.template Build<MiningMachineCell>(cellPosition, Direction::kTop);
                 break;
             case PlayerAction::BuildRightOutMiningMachine:
-                board_.template Build<MiningMachineCell<TGameConfig>>(cellPosition, Direction::kRight);
+                board_.template Build<MiningMachineCell>(cellPosition, Direction::kRight);
                 break;
             case PlayerAction::BuildBottomOutMiningMachine:
-                board_.template Build<MiningMachineCell<TGameConfig>>(cellPosition, Direction::kBottom);
+                board_.template Build<MiningMachineCell>(cellPosition, Direction::kBottom);
                 break;
             case PlayerAction::BuildLeftToRightConveyor:
-                board_.template Build<ConveyorCell<TGameConfig>>(cellPosition, Direction::kRight);
+                board_.template Build<ConveyorCell>(cellPosition, Direction::kRight);
                 break;
             case PlayerAction::BuildTopToBottomConveyor:
-                board_.template Build<ConveyorCell<TGameConfig>>(cellPosition, Direction::kBottom);
+                board_.template Build<ConveyorCell>(cellPosition, Direction::kBottom);
                 break;
             case PlayerAction::BuildRightToLeftConveyor:
-                board_.template Build<ConveyorCell<TGameConfig>>(cellPosition, Direction::kLeft);
+                board_.template Build<ConveyorCell>(cellPosition, Direction::kLeft);
                 break;
             case PlayerAction::BuildBottomToTopConveyor:
-                board_.template Build<ConveyorCell<TGameConfig>>(cellPosition, Direction::kTop);
+                board_.template Build<ConveyorCell>(cellPosition, Direction::kTop);
                 break;
             case PlayerAction::BuildTopOutCombiner:
-                board_.template Build<CombinerCell<TGameConfig>>(cellPosition, Direction::kTop);
+                board_.template Build<CombinerCell>(cellPosition, Direction::kTop);
                 break;
             case PlayerAction::BuildRightOutCombiner:
-                board_.template Build<CombinerCell<TGameConfig>>(cellPosition, Direction::kRight);
+                board_.template Build<CombinerCell>(cellPosition, Direction::kRight);
                 break;
             case PlayerAction::BuildBottomOutCombiner:
-                board_.template Build<CombinerCell<TGameConfig>>(cellPosition, Direction::kBottom);
+                board_.template Build<CombinerCell>(cellPosition, Direction::kBottom);
                 break;
             case PlayerAction::BuildLeftOutCombiner:
-                board_.template Build<CombinerCell<TGameConfig>>(cellPosition, Direction::kLeft);
+                board_.template Build<CombinerCell>(cellPosition, Direction::kLeft);
                 break;
             case PlayerAction::Clear:
                 board_.Remove(cellPosition);
@@ -807,23 +828,9 @@ namespace Feis
         }
 
     private:
-        GameBoard<TGameConfig> board_;
+        GameBoard board_;
+        int commonDividor_;
         int scores_;
-    };
-
-    class GameConfig
-    {
-    public:
-        static constexpr int kFPS = 30;
-        static constexpr std::size_t kBoardWidth = 62;
-        static constexpr std::size_t kBoardHeight = 36;
-        static constexpr int kCellSize = 20;
-        static constexpr int kBoardLeft = 20;
-        static constexpr int kBoardTop = 60;
-        static constexpr std::size_t kGoalSize = 4;
-        static constexpr int kBorderSize = 1;
-        static constexpr std::size_t kConveyorBufferSize = 10;
-        static constexpr int kCommonDivisor = 2;
     };
 }
 #endif

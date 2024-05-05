@@ -5,30 +5,33 @@
 #include "CellRendererSecondPassVisitor.hpp"
 #include "CellRendererThirdPassVisitor.hpp"
 
-template<typename TGameConfig>
+template<typename TGameRendererConfig>
 class CellStackRenderer
 {
 public:
+    using IGameManager = Feis::IGameManager;
     using CellPosition = Feis::CellPosition;
 
     void RenderPassOne(
-        const Feis::CellStack<TGameConfig> &cellStack,
-        Drawer<TGameConfig> &renderer, 
+        const IGameManager &gameManager,
+        Drawer<TGameRendererConfig> &renderer, 
         CellPosition position) const
     {
+        auto& cellStack = gameManager.GetCellStack(position);
+
         auto foreground = cellStack.GetForeground();
         auto background = cellStack.GetBackground();
 
         if (foreground)
         {
-            CellRendererFirstPassVisitor<TGameConfig> cellRenderer(&renderer, position, background.get());
+            CellRendererFirstPassVisitor<TGameRendererConfig> cellRenderer(&gameManager, &renderer, position, background.get());
             foreground->Accept(&cellRenderer);
             return;
         }
 
         if (background)
         {
-            CellRendererFirstPassVisitor<TGameConfig> cellRenderer(&renderer, position, background.get());
+            CellRendererFirstPassVisitor<TGameRendererConfig> cellRenderer(&gameManager, &renderer, position, background.get());
             background->Accept(&cellRenderer);
             return;
         }
@@ -37,27 +40,32 @@ public:
     }
 
     void RenderPassTwo(
-        const Feis::CellStack<TGameConfig> &cellStack,
-        Drawer<TGameConfig> &drawer,
+        const IGameManager &gameManager,
+        Drawer<TGameRendererConfig> &drawer,
         CellPosition cellPosition) const
     {
+        auto& cellStack = gameManager.GetCellStack(cellPosition);
+
         auto foreground = cellStack.GetForeground();
+
         if (foreground)
         {
-            CellRendererSecondPassVisitor<TGameConfig> cellRenderer(&drawer, cellPosition);
+            CellRendererSecondPassVisitor<TGameRendererConfig> cellRenderer(&gameManager, &drawer, cellPosition);
             foreground->Accept(&cellRenderer);
         }
     }
 
     void RenderPassThree(
-        const Feis::CellStack<TGameConfig> &cellStack,
-        Drawer<TGameConfig> &drawer,
+        const IGameManager &gameManager,
+        Drawer<TGameRendererConfig> &drawer,
         CellPosition cellPosition) const
     {
+        auto& cellStack = gameManager.GetCellStack(cellPosition);
+
         auto foreground = cellStack.GetForeground();
         if (foreground)
         {
-            CellRendererThirdPassVisitor<TGameConfig> cellRenderer(&drawer, cellPosition);
+            CellRendererThirdPassVisitor<TGameRendererConfig> cellRenderer(&drawer, cellPosition);
             foreground->Accept(&cellRenderer);
         }
     }
