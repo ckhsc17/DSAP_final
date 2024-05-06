@@ -70,7 +70,7 @@ int main(int, char **)
 
     GamePlayerWithHistory player;
     
-    GameManager gameManager(&player, 3, 20);
+    GameManager gameManager(&player, 1, 20);
 
     const std::map<sf::Keyboard::Key, PlayerActionType> playerActionKeyboardMap = {
         {sf::Keyboard::J, PlayerActionType::BuildLeftOutMiningMachine},
