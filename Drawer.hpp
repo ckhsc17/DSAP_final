@@ -9,7 +9,7 @@ public:
 
     Drawer(sf::RenderWindow *window) : window_(window)
     {
-        if (!font_.loadFromFile("arial.ttf"))
+        if (!font_.loadFromFile("../arial.ttf"))
         {
             std::cout << "Error loading font" << std::endl;
         }

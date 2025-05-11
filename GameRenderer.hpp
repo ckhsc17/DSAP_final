@@ -1,4 +1,4 @@
-#include "PDOGS.hpp"
+#include "PDOGS.cpp"
 #include "Drawer.hpp"
 #include "LayeredCellRenderer.hpp"
 

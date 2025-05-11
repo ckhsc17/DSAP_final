@@ -1,7 +1,9 @@
-#include "PDOGS.hpp"
+#define USE_GUI
 #include <fstream>
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
+
+#include "PDOGS.cpp"
 
 #include "GameRenderer.hpp"
 

@@ -3,8 +3,6 @@ project(DSAP112_FinalProject VERSION 0.1.0 LANGUAGES C CXX)
 
 add_executable(GUI GUI.cpp)
 target_compile_features(GUI PRIVATE cxx_std_17)
-target_compile_options(GUI PRIVATE -g -fsanitize=address)
-target_link_options(GUI PRIVATE -g -fsanitize=address)
 find_package(SFML COMPONENTS system window graphics CONFIG REQUIRED)
 target_link_libraries(GUI PRIVATE sfml-system sfml-network sfml-graphics sfml-window)
 

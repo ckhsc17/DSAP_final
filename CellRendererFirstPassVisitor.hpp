@@ -1,6 +1,6 @@
 #ifndef CELL_RENDERER_FIRST_PASS_VISITOR_HPP
 #define CELL_RENDERER_FIRST_PASS_VISITOR_HPP
-#include "PDOGS.hpp"
+#include "PDOGS.cpp"
 #include "Drawer.hpp"
 
 template <typename TGameRendererConfig>

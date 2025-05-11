@@ -1,6 +1,6 @@
 #ifndef CELL_RENDERER_THIRD_PASS_VISITOR_HPP
 #define CELL_RENDERER_THIRD_PASS_VISITOR_HPP
-#include "PDOGS.hpp"
+#include "PDOGS.cpp"
 
 template <typename TGameRendererConfig>
 class CellRendererThirdPassVisitor : public Feis::CellVisitor
